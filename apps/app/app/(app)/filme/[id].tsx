@@ -13,7 +13,7 @@ import { Stack, useLocalSearchParams } from 'expo-router';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import {
-  describeCatalogError,
+  CatalogErrorNotice,
   formatRuntime,
   parseTmdbId,
   releaseYear,
@@ -46,10 +46,13 @@ export default function MovieDetailScreen() {
 
   if (tmdbId === null) {
     return (
-      <Notice
-        title="Endereço inválido"
-        detail="Este endereço não aponta para um filme. Volte à busca e escolha um título."
-      />
+      <Screen>
+        <Stack.Screen options={{ title: 'Filme' }} />
+        <FormTitle>Endereço inválido</FormTitle>
+        <FormDescription>
+          Este endereço não aponta para um filme. Volte à busca e escolha um título.
+        </FormDescription>
+      </Screen>
     );
   }
 
@@ -63,17 +66,11 @@ export default function MovieDetailScreen() {
   }
 
   if (isError) {
-    const { title, detail, canRetry } = describeCatalogError(error);
-
     return (
-      <Notice
-        title={title}
-        detail={detail}
-        // Sem `canRetry`, um filme removido do TMDB ganharia um botão que
-        // repete para sempre o mesmo 404.
-        onRetry={canRetry ? () => void refetch() : undefined}
-        isRetrying={isFetching}
-      />
+      <Screen>
+        <Stack.Screen options={{ title: 'Filme' }} />
+        <CatalogErrorNotice error={error} onRetry={() => void refetch()} isRetrying={isFetching} />
+      </Screen>
     );
   }
 
@@ -130,34 +127,6 @@ export default function MovieDetailScreen() {
 
         <Text style={styles.attribution}>{TMDB_ATTRIBUTION}</Text>
       </ScrollView>
-    </Screen>
-  );
-}
-
-/** Tela de recado: id inválido e falhas de carregamento caem aqui. */
-function Notice({
-  title,
-  detail,
-  onRetry,
-  isRetrying,
-}: {
-  title: string;
-  detail: string;
-  onRetry?: () => void;
-  isRetrying?: boolean;
-}) {
-  return (
-    <Screen>
-      <Stack.Screen options={{ title: 'Filme' }} />
-      <FormTitle>{title}</FormTitle>
-      <FormDescription>{detail}</FormDescription>
-      {onRetry ? (
-        <Button
-          label={isRetrying ? 'Tentando…' : 'Tentar de novo'}
-          onPress={onRetry}
-          disabled={isRetrying}
-        />
-      ) : null}
     </Screen>
   );
 }
