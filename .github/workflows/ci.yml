@@ -36,3 +36,44 @@ jobs:
 
       - name: Testes
         run: pnpm test
+
+  # Sobe o Supabase local para provar que as migrações aplicam do zero, que as
+  # políticas continuam valendo e que os tipos versionados descrevem o banco que
+  # as migrações produzem. Sem isso, migração e tipos saem de sincronia em silêncio.
+  database:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Instalar dependências
+        run: pnpm install --frozen-lockfile
+
+      # Só o banco: os demais serviços não participam de nenhuma verificação aqui.
+      - name: Subir o banco local
+        run: npx supabase start -x realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector,supavisor,mailpit,inbucket
+
+      - name: Aplicar migrações do zero
+        run: npx supabase db reset
+
+      - name: Verificar RLS
+        run: pnpm db:test:rls
+
+      - name: Verificar trigger de perfil
+        run: pnpm db:test:profile
+
+      - name: Regenerar tipos do banco
+        run: pnpm --filter @rewam/database gen:types
+
+      - name: Falhar se os tipos versionados divergirem das migrações
+        run: |
+          if ! git diff --exit-code -- packages/database/src/types.generated.ts; then
+            echo "::error::Os tipos versionados não correspondem às migrações. Rode 'pnpm --filter @rewam/database gen:types' e faça commit do resultado."
+            exit 1
+          fi
