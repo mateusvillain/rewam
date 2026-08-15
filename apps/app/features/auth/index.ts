@@ -6,3 +6,9 @@ export { classifyAuthError, translateAuthError } from './error-messages';
 export type { AuthErrorKind, AuthErrorLike } from './error-messages';
 export { resolveSignUpOutcome } from './sign-up-outcome';
 export type { SignUpOutcome } from './sign-up-outcome';
+export {
+  canResend,
+  remainingCooldownSeconds,
+  resendLabel,
+  RESEND_COOLDOWN_SECONDS,
+} from './resend-cooldown';

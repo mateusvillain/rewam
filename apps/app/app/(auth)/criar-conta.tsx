@@ -5,21 +5,17 @@ import {
   Button,
   ControlledTextField,
   formLinkStyle,
-  FormDescription,
   FormLinks,
   FormMessage,
   FormTitle,
   Screen,
 } from '@rewam/ui';
 import { Link, router, Stack } from 'expo-router';
-import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { classifyAuthError, resolveSignUpOutcome, translateAuthError } from '@/features/auth';
 import { supabase } from '@/lib/supabase';
 
 export default function CriarContaScreen() {
-  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
-
   const {
     control,
     handleSubmit,
@@ -44,35 +40,23 @@ export default function CriarContaScreen() {
         return;
       }
 
-      setPendingEmail(values.email);
+      goToConfirmation(values.email);
       return;
     }
 
-    // Com confirmação de e-mail ligada, o cadastro não devolve sessão: falta
-    // digitar o código. A tela de confirmação chega na REW-50.
+    // Com a confirmação ligada, o cadastro não devolve sessão: falta digitar o
+    // código. O caminho é o mesmo do e-mail já cadastrado, de propósito — quem
+    // tenta descobrir contas alheias vê sempre a mesma tela.
     if (resolveSignUpOutcome(data.session !== null) === 'needsConfirmation') {
-      setPendingEmail(values.email);
+      goToConfirmation(values.email);
       return;
     }
 
     router.replace('/');
   }
 
-  if (pendingEmail) {
-    return (
-      <Screen>
-        <Stack.Screen options={{ title: 'Confirme seu e-mail' }} />
-        <FormTitle>Falta confirmar seu e-mail</FormTitle>
-        <FormDescription>
-          Enviamos um código para {pendingEmail}. Confirme para concluir o cadastro e entrar.
-        </FormDescription>
-        <FormLinks>
-          <Link href="/(auth)/entrar" style={formLinkStyle}>
-            Voltar para o login
-          </Link>
-        </FormLinks>
-      </Screen>
-    );
+  function goToConfirmation(email: string) {
+    router.push({ pathname: '/(auth)/confirmar-email', params: { email } });
   }
 
   return (

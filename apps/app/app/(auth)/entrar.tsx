@@ -30,6 +30,13 @@ export default function EntrarScreen() {
     const { error } = await signIn(supabase, values);
 
     if (error) {
+      // Conta criada mas não confirmada não é um beco: quem parou no meio do
+      // cadastro volta direto para a tela de código, sem recomeçar.
+      if (error.code === 'email_not_confirmed') {
+        router.push({ pathname: '/(auth)/confirmar-email', params: { email: values.email } });
+        return;
+      }
+
       setError('root', { message: translateAuthError(error) });
       return;
     }

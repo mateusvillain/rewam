@@ -3,8 +3,8 @@ import { classifyAuthError, translateAuthError } from './error-messages';
 
 describe('translateAuthError', () => {
   it('prefere o código ao texto da mensagem', () => {
-    expect(translateAuthError({ code: 'otp_expired', message: 'qualquer texto' })).toBe(
-      'O código expirou. Peça um novo.',
+    expect(translateAuthError({ code: 'otp_expired', message: 'qualquer texto' })).toContain(
+      'inválido ou expirado',
     );
   });
 
@@ -21,10 +21,11 @@ describe('translateAuthError', () => {
     expect(traduzido).not.toContain('6 dígitos');
   });
 
-  it('distingue código expirado de código inválido', () => {
-    expect(translateAuthError({ code: 'otp_expired', message: '' })).toBe(
-      'O código expirou. Peça um novo.',
-    );
+  it('cobre código errado e expirado com a mesma mensagem', () => {
+    // O Supabase responde otp_expired nos dois casos, então a mensagem não pode
+    // afirmar que o código venceu quando ele pode ter sido só digitado errado.
+    const mensagem = translateAuthError({ code: 'otp_expired', message: '' });
+    expect(mensagem).toContain('inválido ou expirado');
     expect(translateAuthError({ message: 'Token not found' })).toBe(
       'Código inválido. Confira os 6 dígitos e tente de novo.',
     );

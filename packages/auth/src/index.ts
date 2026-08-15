@@ -36,6 +36,28 @@ export async function signOut(client: RewamSupabaseClient) {
 }
 
 /**
+ * Confirmação de cadastro por código de 6 dígitos.
+ *
+ * Um código válido confirma o e-mail e já devolve a sessão, então a pessoa entra
+ * direto — sem precisar digitar a senha de novo logo depois de tê-la escolhido.
+ */
+export async function verifySignUpCode(client: RewamSupabaseClient, email: string, code: string) {
+  return client.auth.verifyOtp({
+    email: emailSchema.parse(email),
+    token: verificationCodeSchema.parse(code),
+    type: 'signup',
+  });
+}
+
+/** Reenvia o código de confirmação para quem ainda não concluiu o cadastro. */
+export async function resendSignUpCode(client: RewamSupabaseClient, email: string) {
+  return client.auth.resend({
+    type: 'signup',
+    email: emailSchema.parse(email),
+  });
+}
+
+/**
  * Redefinição de senha em três passos, por código de 6 dígitos:
  * pedir o código, trocar o código por uma sessão, e então gravar a nova senha.
  *
