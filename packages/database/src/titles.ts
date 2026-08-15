@@ -18,8 +18,8 @@ export type { Title };
  *
  * Recebe `CatalogTitle`, e não `CatalogSearchResult`, de propósito: resultado de
  * busca não traz duração, e o tipo é o que impede a chamada errada. A função no
- * banco tem a segunda linha de defesa, preservando a duração já gravada quando
- * a chamada não informa nenhuma.
+ * banco tem a segunda linha de defesa: a duração é gravada uma vez e nenhuma
+ * chamada posterior a reescreve — nem uma vinda de outra conta.
  */
 export async function upsertTitle(
   client: RewamSupabaseClient,
@@ -35,9 +35,13 @@ export async function upsertTitle(
     p_tmdb_id: title.tmdbId,
     p_media_type: title.mediaType,
     p_title: title.title,
-    // `undefined` em vez de `null`: omitir o argumento cai no default da função,
-    // e é assim que a duração ausente significa "não sei", em vez de "apague a
-    // que está lá".
+    // `undefined` em vez de `null` porque os argumentos opcionais da função são
+    // tipados sem `null`. O efeito é o mesmo: cai no default.
+    //
+    // Vale notar o que isto **não** protege: título, pôster e data são
+    // sobrescritos pelo que chegar, inclusive por nada. Só a duração é imutável
+    // depois da primeira gravação, e quem garante isso é o `coalesce` da
+    // função, não este `??`.
     p_original_title: title.originalTitle ?? undefined,
     p_poster_path: title.posterPath ?? undefined,
     p_release_date: title.releaseDate ?? undefined,
