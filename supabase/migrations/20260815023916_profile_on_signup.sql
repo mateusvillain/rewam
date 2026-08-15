@@ -8,6 +8,20 @@
 -- auth.users nem sobre a linha de outro usuário no momento do cadastro. Por isso
 -- ela é deliberadamente burra: escreve uma linha, com um id que vem do próprio
 -- registro criado, e nada mais.
+--
+-- Duas consequências que valem estar escritas:
+--   1. Exceção aqui aborta o INSERT em auth.users e o cadastro inteiro falha.
+--      É a semântica desejada — conta sem perfil seria pior —, mas exige que a
+--      função permaneça mínima e sem I/O.
+--   2. A função roda como o dono (`postgres`), que também é dono de profiles e
+--      por isso não passa por RLS. Habilitar `force row level security` em
+--      profiles quebraria todo signUp; se um dia isso for necessário, esta
+--      função precisa de política própria antes.
+
+-- Limite de tamanho do nome mora na tabela, não só no trigger: quem edita o
+-- próprio nome pelo PostgREST passa pela mesma regra.
+alter table public.profiles
+  add constraint profiles_name_length_check check (name is null or char_length(name) <= 100);
 
 create function public.handle_new_user()
 returns trigger
@@ -18,14 +32,16 @@ security definer
 set search_path = ''
 as $$
 begin
+  -- Sem ON CONFLICT: o id vem de uma linha recém-criada em auth.users, então
+  -- colisão significaria estado inconsistente e é melhor falhar alto do que
+  -- seguir em silêncio com um perfil que não corresponde à conta.
   insert into public.profiles (id, name)
   values (
     new.id,
-    -- Metadado é conteúdo controlado pelo cliente: espaços fora, tamanho limitado,
-    -- e string vazia vira NULL em vez de virar um nome em branco.
+    -- Metadado é conteúdo controlado pelo cliente: espaços fora, corte no limite
+    -- da constraint, e string vazia vira NULL em vez de nome em branco.
     nullif(left(trim(coalesce(new.raw_user_meta_data ->> 'name', '')), 100), '')
-  )
-  on conflict (id) do nothing;
+  );
 
   return new;
 end;
