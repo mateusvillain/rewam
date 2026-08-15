@@ -1,6 +1,8 @@
-import { catalogTitleSchema, titleSchema, type CatalogTitle, type Title } from '@rewam/types';
+import { catalogTitleSchema, type CatalogTitle, type Title } from '@rewam/types';
 
 import type { RewamSupabaseClient } from './client';
+import { throwIfError } from './errors';
+import { requireRow, toTitle } from './rows';
 
 export type { Title };
 
@@ -48,16 +50,7 @@ export async function upsertTitle(
     p_runtime_minutes: title.runtimeMinutes ?? undefined,
   });
 
-  if (error) throw error;
+  throwIfError(error);
 
-  return titleSchema.parse({
-    id: data.id,
-    tmdbId: data.tmdb_id,
-    mediaType: data.media_type,
-    title: data.title,
-    originalTitle: data.original_title,
-    posterPath: data.poster_path,
-    releaseDate: data.release_date,
-    runtimeMinutes: data.runtime_minutes,
-  });
+  return toTitle(requireRow(data));
 }

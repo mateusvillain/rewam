@@ -1,5 +1,6 @@
 import { profileSchema, type Profile } from '@rewam/types';
 import type { RewamSupabaseClient } from './client';
+import { throwIfError } from './errors';
 
 export type { Profile };
 
@@ -10,7 +11,7 @@ export type { Profile };
 export async function getOwnProfile(client: RewamSupabaseClient): Promise<Profile | null> {
   const { data, error } = await client.from('profiles').select('id, name').maybeSingle();
 
-  if (error) throw error;
+  throwIfError(error);
   if (!data) return null;
 
   return profileSchema.parse(data);
@@ -33,7 +34,7 @@ export async function updateOwnProfileName(
     .select('id, name')
     .single();
 
-  if (error) throw error;
+  throwIfError(error);
 
   return profileSchema.parse(data);
 }
@@ -50,7 +51,7 @@ export async function createOwnProfile(
     .select('id, name')
     .single();
 
-  if (error) throw error;
+  throwIfError(error);
 
   return profileSchema.parse(data);
 }
@@ -58,5 +59,5 @@ export async function createOwnProfile(
 /** Apaga a conta de quem está autenticado; perfil e exibições vão pela cascata. */
 export async function deleteOwnAccount(client: RewamSupabaseClient): Promise<void> {
   const { error } = await client.rpc('delete_own_account');
-  if (error) throw error;
+  throwIfError(error);
 }

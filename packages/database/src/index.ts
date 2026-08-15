@@ -1,4 +1,6 @@
 export * from './client';
+export * from './errors';
 export * from './profiles';
 export * from './titles';
+export * from './watch-events';
 export type { Database } from './types.generated';
