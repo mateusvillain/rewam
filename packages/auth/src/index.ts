@@ -1,17 +1,20 @@
 import type { RewamSupabaseClient } from '@rewam/database';
+import {
+  credentialsSchema,
+  emailSchema,
+  newPasswordSchema,
+  signUpSchema,
+  verificationCodeSchema,
+  type Credentials,
+  type NewPasswordInput,
+  type SignUpInput,
+} from '@rewam/types';
 import type { Session } from '@supabase/supabase-js';
-import { z } from 'zod';
 
-export const credentialsSchema = z.object({
-  email: z.email(),
-  password: z.string().min(8, 'A senha precisa de pelo menos 8 caracteres.'),
-});
-export type Credentials = z.infer<typeof credentialsSchema>;
-
-export const signUpSchema = credentialsSchema.extend({
-  name: z.string().min(2, 'Informe seu nome.'),
-});
-export type SignUpInput = z.infer<typeof signUpSchema>;
+// Os contratos moram em `@rewam/types` para que telas, este pacote e o MCP usem
+// a mesma regra; aqui só reexportamos por conveniência de quem já importa daqui.
+export { credentialsSchema, emailSchema, newPasswordSchema, signUpSchema, verificationCodeSchema };
+export type { Credentials, NewPasswordInput, SignUpInput };
 
 /** O perfil é criado por trigger em `auth.users`; aqui só passamos metadados seguros. */
 export async function signUp(client: RewamSupabaseClient, input: SignUpInput) {
@@ -32,12 +35,39 @@ export async function signOut(client: RewamSupabaseClient) {
   return client.auth.signOut();
 }
 
-export async function resetPassword(
+/**
+ * Redefinição de senha em três passos, por código de 6 dígitos:
+ * pedir o código, trocar o código por uma sessão, e então gravar a nova senha.
+ *
+ * O código evita depender de deep link nas três plataformas e funciona mesmo
+ * quando a pessoa abre o e-mail num dispositivo diferente do que pediu a troca.
+ */
+export async function requestPasswordResetCode(client: RewamSupabaseClient, email: string) {
+  return client.auth.resetPasswordForEmail(emailSchema.parse(email));
+}
+
+/**
+ * Um código válido cria a sessão que autoriza a troca de senha em seguida.
+ *
+ * Quem chama assume a responsabilidade de encerrar essa sessão se a troca não
+ * for concluída: caso contrário um código de e-mail viraria login sem senha nova.
+ */
+export async function verifyPasswordResetCode(
   client: RewamSupabaseClient,
   email: string,
-  redirectTo?: string,
+  code: string,
 ) {
-  return client.auth.resetPasswordForEmail(z.email().parse(email), { redirectTo });
+  return client.auth.verifyOtp({
+    email: emailSchema.parse(email),
+    token: verificationCodeSchema.parse(code),
+    type: 'recovery',
+  });
+}
+
+/** Exige a sessão criada por `verifyPasswordResetCode`. */
+export async function updatePassword(client: RewamSupabaseClient, input: NewPasswordInput) {
+  const { password } = newPasswordSchema.parse(input);
+  return client.auth.updateUser({ password });
 }
 
 export async function getCurrentUserId(client: RewamSupabaseClient): Promise<string | null> {

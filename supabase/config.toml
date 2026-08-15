@@ -248,6 +248,13 @@ otp_expiry = 3600
 # subject = "You have been invited"
 # content_path = "./supabase/templates/invite.html"
 
+# Redefinição de senha por código de 6 dígitos: o template expõe {{ .Token }}
+# em vez de {{ .ConfirmationURL }}, porque link exigiria deep link confiável nas
+# três plataformas e quebra quando o e-mail é aberto em outro dispositivo.
+[auth.email.template.recovery]
+subject = "Seu código para redefinir a senha no Rewam"
+content_path = "./supabase/templates/recovery.html"
+
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]
 # enabled = true
