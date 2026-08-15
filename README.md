@@ -90,7 +90,7 @@ npx supabase config push
 | Cartão de crédito   | não exige                                 |
 | Primeiro plano pago | US$ 20/mês — 50.000 e-mails e 10 domínios |
 
-O volume real do projeto é de dezenas de e-mails por mês, muito abaixo do teto. Os limites do próprio Supabase são mais apertados de propósito: `auth.rate_limit.email_sent` (30/hora) e `auth.email.max_frequency` (60s entre reenvios, espelhando o cooldown do app).
+O volume real do projeto é de dezenas de e-mails por mês, muito abaixo do teto. Quem limita o gasto é o plano do Resend; os dois limites do Supabase, também no bloco `[remotes.production]`, existem contra abuso: `auth.rate_limit.email_sent` (30/hora, teto global) e `auth.email.max_frequency` (60s entre reenvios por usuário, espelhando o cooldown do app). No stack local nenhum dos dois vale, para não atrapalhar teste manual.
 
 A comparação que levou a essa escolha, com os outros provedores avaliados, está na [wiki](https://github.com/mateusvillain/rewam/wiki/Provedores-SMTP).
 
