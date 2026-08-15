@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@rewam/types": "workspace:*",
+    "@rewam/utils": "workspace:*",
     "zod": "^4.1.13"
   }
 }
