@@ -46,7 +46,7 @@ export function useTitleDetail(mediaType: MediaType, tmdbId: number | null) {
  * têm retry automático — só as queries têm.
  */
 export function usePersistOpenedTitle(detail: CatalogTitleDetail | undefined) {
-  const { mutate, isError, isPending } = useUpsertTitle();
+  const { mutate, data: saved, isError, isPending } = useUpsertTitle();
   const persisted = useRef<string | null>(null);
 
   const persist = useCallback(
@@ -72,6 +72,15 @@ export function usePersistOpenedTitle(detail: CatalogTitleDetail | undefined) {
   }, [detail, persist]);
 
   return {
+    /**
+     * A linha gravada em `titles`, com o `id` que `watch_events` referencia.
+     *
+     * É `undefined` enquanto a gravação não termina, e é por isso que a ação de
+     * registrar só aparece depois: sem este id, marcar como assistido falharia
+     * por chave estrangeira — o id do TMDB não serve, `watch_events` aponta
+     * para `titles.id`.
+     */
+    title: saved,
     saveFailed: isError,
     isSaving: isPending,
     /** Repete a gravação sem exigir que a pessoa saia e volte para a tela. */

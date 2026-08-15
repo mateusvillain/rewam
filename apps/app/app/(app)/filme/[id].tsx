@@ -12,6 +12,8 @@ import {
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { WatchEventForm } from '@/features/watch';
+
 import {
   CatalogErrorNotice,
   formatRuntime,
@@ -25,10 +27,14 @@ import {
 /**
  * Detalhe de filme.
  *
- * É onde a pessoa confirma que escolheu o título certo antes de registrar. A
- * ação de marcar como assistido chega na E4; aqui fica a apresentação e o lugar
- * reservado para ela, além do título já gravado no banco — que é o que essa
- * ação vai precisar para funcionar.
+ * É onde a pessoa confirma que escolheu o título certo e registra a exibição.
+ *
+ * O título é gravado no banco ao abrir a tela, antes de qualquer ação: é o
+ * `titles.id` dessa gravação que `watch_events` referencia, e é por isso que o
+ * formulário depende dela e não do id do TMDB.
+ *
+ * O histórico das exibições deste título entra logo abaixo do formulário na
+ * E4.4; a invalidação de cache que vai alimentá-lo já é feita no registro.
  */
 export default function MovieDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -42,7 +48,7 @@ export default function MovieDetailScreen() {
     refetch,
     isFetching,
   } = useTitleDetail('movie', tmdbId);
-  const { saveFailed, isSaving, retrySave } = usePersistOpenedTitle(movie);
+  const { title: savedTitle, saveFailed, isSaving, retrySave } = usePersistOpenedTitle(movie);
 
   if (tmdbId === null) {
     return (
@@ -96,12 +102,16 @@ export default function MovieDetailScreen() {
           </View>
         </View>
 
-        {/* Lugar da ação da E4. O botão fica desabilitado em vez de ausente
-            para que o layout já nasça com ela, e para dizer o que vem a
-            seguir — mesmo caminho da tela de início. */}
+        {/* A ação só existe depois que o título está gravado: `watch_events`
+            referencia `titles.id`, e sem ele o registro falharia por chave
+            estrangeira. Enquanto grava, o lugar dela fica ocupado — em vez de
+            aparecer de repente e mover o resto da tela. */}
         <View style={styles.action}>
-          <Button label="Marcar como assistido" disabled />
-          <FormDescription>O registro de exibições chega no próximo incremento.</FormDescription>
+          {savedTitle ? (
+            <WatchEventForm titleId={savedTitle.id} runtimeMinutes={movie.runtimeMinutes} />
+          ) : saveFailed ? null : (
+            <FormDescription>Preparando o registro…</FormDescription>
+          )}
         </View>
 
         {saveFailed ? (
