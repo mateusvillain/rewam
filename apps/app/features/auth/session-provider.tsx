@@ -1,5 +1,15 @@
+import { subscribeToSession } from '@rewam/auth';
 import type { Session, User } from '@supabase/supabase-js';
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { supabase } from '@/lib/supabase';
 import { resolveSessionStatus, type SessionStatus } from './session-status';
 
@@ -15,30 +25,32 @@ const SessionContext = createContext<SessionState | null>(null);
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [isRestoring, setIsRestoring] = useState(true);
+  const queryClient = useQueryClient();
+  const previousUserId = useRef<string | null>(null);
 
   useEffect(() => {
-    let active = true;
-
-    // A restauração inicial e o listener correm em paralelo; `active` evita que
-    // a resposta mais lenta sobrescreva um estado mais novo depois do unmount.
-    supabase.auth.getSession().then(({ data }) => {
-      if (!active) return;
-      setSession(data.session);
-      setIsRestoring(false);
-    });
-
-    // Cobre login, logout, refresh de token e logout em outra aba na web.
-    const { data: subscription } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      if (!active) return;
+    // Uma única fonte de verdade: `INITIAL_SESSION` já entrega a sessão
+    // restaurada do storage, então não há um getSession() concorrente cuja
+    // resposta atrasada pudesse sobrescrever um evento mais novo.
+    const unsubscribe = subscribeToSession(supabase, (nextSession) => {
       setSession(nextSession);
       setIsRestoring(false);
     });
 
-    return () => {
-      active = false;
-      subscription.subscription.unsubscribe();
-    };
+    return unsubscribe;
   }, []);
+
+  useEffect(() => {
+    const currentUserId = session?.user.id ?? null;
+
+    // Trocar de conta no mesmo processo precisa esvaziar o cache: o RLS protege
+    // o banco, não o que o TanStack Query já guardou em memória.
+    if (previousUserId.current !== null && previousUserId.current !== currentUserId) {
+      queryClient.clear();
+    }
+
+    previousUserId.current = currentUserId;
+  }, [queryClient, session]);
 
   const value = useMemo<SessionState>(
     () => ({
@@ -58,16 +70,4 @@ export function useSession(): SessionState {
     throw new Error('useSession precisa estar dentro de <SessionProvider>.');
   }
   return value;
-}
-
-/**
- * Atalho para telas que só renderizam autenticadas. Lança se não houver usuário,
- * poupando cada tela de tratar um caso que o roteamento já impede.
- */
-export function useAuthenticatedUser(): User {
-  const { user } = useSession();
-  if (!user) {
-    throw new Error('useAuthenticatedUser foi usado fora da área autenticada.');
-  }
-  return user;
 }
