@@ -1,12 +1,13 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { DatabaseError } from '@rewam/database';
 import { spacing } from '@rewam/tokens';
-import { Button, ControlledTextField, FormDescription, FormMessage, TextField } from '@rewam/ui';
-import { Controller, useForm } from 'react-hook-form';
+import { NOTES_MAX_LENGTH } from '@rewam/types';
+import { Button, ControlledTextField, FormDescription, FormMessage } from '@rewam/ui';
+import { useForm } from 'react-hook-form';
 import { StyleSheet, View } from 'react-native';
 
 import { useCreateWatchEvent } from './use-watch-events';
 import { maskDate, today, yesterday } from './watch-date';
+import { describeWatchError } from './watch-error';
 import {
   toCreateInput,
   watchFormDefaults,
@@ -19,7 +20,6 @@ export type WatchEventFormProps = {
   titleId: string;
   /** Duração do TMDB, que pré-preenche o campo. */
   runtimeMinutes: number | null;
-  onRegistered?: () => void;
 };
 
 /**
@@ -29,7 +29,7 @@ export type WatchEventFormProps = {
  * congelada no evento: quem assistiu a uma versão estendida registra o que de
  * fato viu, e uma correção posterior no catálogo não reescreve esse número.
  */
-export function WatchEventForm({ titleId, runtimeMinutes, onRegistered }: WatchEventFormProps) {
+export function WatchEventForm({ titleId, runtimeMinutes }: WatchEventFormProps) {
   const create = useCreateWatchEvent();
 
   const { control, handleSubmit, formState, reset, setValue } = useForm<WatchFormValues>({
@@ -37,50 +37,52 @@ export function WatchEventForm({ titleId, runtimeMinutes, onRegistered }: WatchE
     defaultValues: watchFormDefaults(runtimeMinutes),
   });
 
-  function onSubmit(values: WatchFormValues) {
+  const submit = handleSubmit((values) => {
     create.mutate(toCreateInput(values, titleId), {
       onSuccess: () => {
         // Volta ao estado inicial para que registrar uma reassistida logo em
         // seguida não exija apagar o que ficou do registro anterior.
         reset(watchFormDefaults(runtimeMinutes));
-        onRegistered?.();
       },
     });
+  });
+
+  /** Preenche a data por atalho, já validando: o botão é uma resposta, não um rascunho. */
+  function fillDate(value: string) {
+    setValue('date', value, { shouldValidate: true, shouldDirty: true });
   }
+
+  const failure = create.isError ? describeWatchError(create.error) : null;
 
   return (
     <View style={styles.root}>
-      <Controller
+      <ControlledTextField
         control={control}
         name="date"
-        render={({ field: { onChange, onBlur, value } }) => (
-          <TextField
-            label="Data"
-            value={value}
-            // A máscara roda na mudança, e não na validação: assim a pessoa vê
-            // as barras aparecerem enquanto digita, em vez de ser corrigida ao
-            // sair do campo.
-            onChangeText={(text) => onChange(maskDate(text))}
-            onBlur={onBlur}
-            error={formState.errors.date?.message}
-            placeholder="DD/MM/AAAA"
-            keyboardType="number-pad"
-            inputMode="numeric"
-            hint="Quando você assistiu."
-          />
-        )}
+        label="Data"
+        error={formState.errors.date?.message}
+        format={maskDate}
+        placeholder="DD/MM/AAAA"
+        keyboardType="number-pad"
+        inputMode="numeric"
+        hint="Quando você assistiu."
       />
 
       <View style={styles.shortcuts}>
+        {/* O rótulo acessível diz o que o botão faz, e não só o seu texto:
+            fora do contexto visual, "Hoje" sozinho não avisa que vai
+            preencher o campo acima. */}
         <Button
           label="Hoje"
           variant="ghost"
-          onPress={() => setValue('date', today(), { shouldValidate: true })}
+          accessibilityLabel="Preencher a data com hoje"
+          onPress={() => fillDate(today())}
         />
         <Button
           label="Ontem"
           variant="ghost"
-          onPress={() => setValue('date', yesterday(), { shouldValidate: true })}
+          accessibilityLabel="Preencher a data com ontem"
+          onPress={() => fillDate(yesterday())}
         />
       </View>
 
@@ -93,6 +95,7 @@ export function WatchEventForm({ titleId, runtimeMinutes, onRegistered }: WatchE
         inputMode="numeric"
         placeholder="120"
         hint="Fica guardada neste registro, mesmo que o catálogo mude depois."
+        onSubmitEditing={submit}
       />
 
       <ControlledTextField
@@ -101,11 +104,12 @@ export function WatchEventForm({ titleId, runtimeMinutes, onRegistered }: WatchE
         label="Notas (opcional)"
         error={formState.errors.notes?.message}
         placeholder="O que achou?"
+        maxLength={NOTES_MAX_LENGTH}
         multiline
         numberOfLines={3}
       />
 
-      {create.isError ? <FormMessage>{describeError(create.error)}</FormMessage> : null}
+      {failure ? <FormMessage>{failure.message}</FormMessage> : null}
 
       {create.isSuccess && !formState.isDirty ? (
         <FormMessage tone="neutro">Exibição registrada.</FormMessage>
@@ -113,8 +117,10 @@ export function WatchEventForm({ titleId, runtimeMinutes, onRegistered }: WatchE
 
       <Button
         label={create.isPending ? 'Registrando…' : 'Marcar como assistido'}
-        disabled={create.isPending}
-        onPress={handleSubmit(onSubmit)}
+        // Repetir só é oferecido quando repetir pode dar outro resultado; num
+        // dado recusado pelo banco, insistir daria a mesma recusa.
+        disabled={create.isPending || (failure !== null && !failure.canRetry && !formState.isDirty)}
+        onPress={submit}
       />
 
       <FormDescription>
@@ -122,18 +128,6 @@ export function WatchEventForm({ titleId, runtimeMinutes, onRegistered }: WatchE
       </FormDescription>
     </View>
   );
-}
-
-/**
- * A mensagem da falha, já em português.
- *
- * `DatabaseError` chega com o texto pronto justamente para a tela não
- * reimplementar o `switch` sobre SQLSTATE; o resto vira uma frase genérica, que
- * é o melhor que se pode dizer sobre um erro que não se sabe classificar.
- */
-function describeError(error: unknown): string {
-  if (error instanceof DatabaseError) return error.message;
-  return 'Não foi possível registrar esta exibição. Tente de novo.';
 }
 
 const styles = StyleSheet.create({

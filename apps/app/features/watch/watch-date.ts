@@ -13,7 +13,7 @@
  */
 
 /** Meio-dia, e não meia-noite. Ver `toWatchedAt` para o porquê. */
-const HORA_NEUTRA = 12;
+const NEUTRAL_HOUR = 12;
 
 export type CalendarDate = { year: number; month: number; day: number };
 
@@ -48,10 +48,10 @@ export function parseDate(value: string): CalendarDate | null {
   const year = Number(match[3]);
 
   const date = new Date(year, month - 1, day);
-  const transbordou =
+  const overflowed =
     date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day;
 
-  return transbordou ? null : { year, month, day };
+  return overflowed ? null : { year, month, day };
 }
 
 export function formatDate(date: Date): string {
@@ -79,9 +79,9 @@ export function yesterday(now: Date = new Date()): string {
  * passar do meio-dia — que é a hora neutra que gravamos.
  */
 export function isFuture(value: CalendarDate, now: Date = new Date()): boolean {
-  const informada = new Date(value.year, value.month - 1, value.day);
-  const hoje = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  return informada.getTime() > hoje.getTime();
+  const given = new Date(value.year, value.month - 1, value.day);
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return given.getTime() > startOfToday.getTime();
 }
 
 /**
@@ -94,7 +94,7 @@ export function isFuture(value: CalendarDate, now: Date = new Date()): boolean {
  * tem doze horas de folga para cada lado, o que cobre todos os fusos habitados.
  */
 export function toWatchedAt(value: CalendarDate): string {
-  return new Date(value.year, value.month - 1, value.day, HORA_NEUTRA, 0, 0, 0).toISOString();
+  return new Date(value.year, value.month - 1, value.day, NEUTRAL_HOUR, 0, 0, 0).toISOString();
 }
 
 /** Caminho inverso, para a edição reabrir o campo com o que foi gravado. */

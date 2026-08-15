@@ -5,26 +5,15 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 
 /**
- * Chaves de cache das exibições.
+ * Raiz das chaves de cache das exibições.
  *
- * Todas descendem de `['watch-events']` para que invalidar a raiz alcance
- * histórico do título, histórico global e total de uma vez. Sem a raiz comum,
- * cada tela nova do Epic 4 teria de ser lembrada em cada mutação — e a
- * esquecida seria justamente a que mostra número velho depois de registrar.
+ * Toda consulta de exibição precisa descender daqui — histórico do título
+ * (E4.4), histórico global (E4.5) e total da tela de início (E4.6) — para que
+ * invalidar a raiz alcance as três de uma vez. Sem essa regra, cada tela nova
+ * teria de ser lembrada em cada mutação, e a esquecida seria justamente a que
+ * mostra número velho depois de registrar.
  */
 export const watchEventsKey = ['watch-events'] as const;
-
-export function watchEventsByTitleKey(titleId: string) {
-  return [...watchEventsKey, 'by-title', titleId] as const;
-}
-
-export function watchEventsListKey() {
-  return [...watchEventsKey, 'list'] as const;
-}
-
-export function watchStatsKey() {
-  return [...watchEventsKey, 'stats'] as const;
-}
 
 /**
  * Registra uma exibição.

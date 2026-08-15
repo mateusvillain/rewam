@@ -1,4 +1,4 @@
-import type { CreateWatchEventInput } from '@rewam/types';
+import { NOTES_MAX_LENGTH, type CreateWatchEventInput } from '@rewam/types';
 import { z } from 'zod';
 
 import { isFuture, parseDate, toWatchedAt, today } from './watch-date';
@@ -12,15 +12,22 @@ import { isFuture, parseDate, toWatchedAt, today } from './watch-date';
  * abaixo é a única ponte entre os dois, e é onde a conversão pode ser testada.
  */
 
-/** Cinco horas. Não é regra de negócio, é peneira de dedo escorregado. */
-const DURACAO_MAXIMA_MINUTOS = 600;
+/**
+ * Um dia. Não é regra de negócio, é peneira de dedo escorregado.
+ *
+ * O teto é alto de propósito: filmes longos de verdade existem — *La Flor* tem
+ * 808 minutos —, e um limite apertado recusaria um registro legítimo, que é
+ * pior do que deixar passar um número digitado errado. Acima de um dia inteiro,
+ * porém, é quase certo que sobrou um dígito.
+ */
+const MAX_DURATION_MINUTES = 1440;
 
 /**
  * As regras são checadas em cascata, com saída na primeira que falha.
  *
  * `superRefine`, e não `refine` encadeado, porque os encadeados rodam todos: a
- * pessoa que digitasse "cento e vinte" veria a mensagem sobre o limite de 600
- * minutos, que é a última a falhar — nada a ver com o que ela errou. Como a
+ * pessoa que digitasse "cento e vinte" veria a mensagem sobre o limite de
+ * duração, que é a última a falhar — nada a ver com o que ela errou. Como a
  * tela mostra uma mensagem por campo, a que sobra tem de ser a primeira.
  */
 const dateField = z.string().superRefine((value, ctx) => {
@@ -67,20 +74,31 @@ const durationField = z.string().superRefine((value, ctx) => {
     return;
   }
 
-  if (minutes > DURACAO_MAXIMA_MINUTOS) {
+  if (minutes > MAX_DURATION_MINUTES) {
     ctx.addIssue({
       code: 'custom',
-      message: `Duração acima de ${DURACAO_MAXIMA_MINUTOS} minutos: confira o número.`,
+      message: `Duração acima de ${MAX_DURATION_MINUTES} minutos: confira o número.`,
     });
   }
 });
 
+/**
+ * Nota opcional, medida já sem os espaços das pontas.
+ *
+ * Medir o texto cru recusaria 500 caracteres seguidos de um espaço, mesmo sendo
+ * exatamente o que o banco aceitaria depois do `trim` de `toCreateInput`.
+ */
+const notesField = z
+  .string()
+  .refine(
+    (value) => value.trim().length <= NOTES_MAX_LENGTH,
+    `Use no máximo ${NOTES_MAX_LENGTH} caracteres.`,
+  );
+
 export const watchFormSchema = z.object({
   date: dateField,
   duration: durationField,
-  // O limite espelha `watch_events_notes_length_check`; sem ele, o banco
-  // recusaria com o nome da constraint depois de a pessoa escrever tudo.
-  notes: z.string().max(500, 'Use no máximo 500 caracteres.'),
+  notes: notesField,
 });
 
 export type WatchFormValues = z.infer<typeof watchFormSchema>;

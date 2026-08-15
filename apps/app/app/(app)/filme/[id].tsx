@@ -107,11 +107,11 @@ export default function MovieDetailScreen() {
             estrangeira. Enquanto grava, o lugar dela fica ocupado — em vez de
             aparecer de repente e mover o resto da tela. */}
         <View style={styles.action}>
-          {savedTitle ? (
-            <WatchEventForm titleId={savedTitle.id} runtimeMinutes={movie.runtimeMinutes} />
-          ) : saveFailed ? null : (
-            <FormDescription>Preparando o registro…</FormDescription>
-          )}
+          <WatchAction
+            titleId={savedTitle?.id ?? null}
+            runtimeMinutes={movie.runtimeMinutes}
+            saveFailed={saveFailed}
+          />
         </View>
 
         {saveFailed ? (
@@ -139,6 +139,34 @@ export default function MovieDetailScreen() {
       </ScrollView>
     </Screen>
   );
+}
+
+/**
+ * O que ocupa o lugar da ação de registrar, nos três estados possíveis.
+ *
+ * Separado da tela porque são três, e um ternário aninhado esconderia qual
+ * deles é o normal. Enquanto o título não está gravado, o espaço fica ocupado
+ * em vez de vazio: a ação aparecendo de repente empurraria o resto da tela para
+ * baixo justamente quando a pessoa está lendo a sinopse.
+ */
+function WatchAction({
+  titleId,
+  runtimeMinutes,
+  saveFailed,
+}: {
+  titleId: string | null;
+  runtimeMinutes: number | null;
+  saveFailed: boolean;
+}) {
+  if (titleId !== null) {
+    return <WatchEventForm titleId={titleId} runtimeMinutes={runtimeMinutes} />;
+  }
+
+  // O aviso de falha, com o botão de tentar de novo, já é mostrado logo abaixo;
+  // repetir a explicação aqui só duplicaria o recado.
+  if (saveFailed) return null;
+
+  return <FormDescription>Preparando o registro…</FormDescription>;
 }
 
 const styles = StyleSheet.create({

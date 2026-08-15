@@ -85,13 +85,13 @@ describe('isFuture', () => {
 describe('toWatchedAt', () => {
   it('grava ao meio-dia local, para o dia não escorregar na conversão', () => {
     const iso = toWatchedAt({ year: 2026, month: 8, day: 15 });
-    const gravado = new Date(iso);
+    const saved = new Date(iso);
 
     // O dia lido de volta no fuso local tem de ser o mesmo que foi informado.
     // À meia-noite, em fuso negativo, isto viraria 14/08 em UTC.
-    expect(gravado.getDate()).toBe(15);
-    expect(gravado.getMonth()).toBe(7);
-    expect(gravado.getHours()).toBe(12);
+    expect(saved.getDate()).toBe(15);
+    expect(saved.getMonth()).toBe(7);
+    expect(saved.getHours()).toBe(12);
   });
 
   it('devolve ISO que o schema de `watch_events` aceita', () => {
