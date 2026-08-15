@@ -1,0 +1,16 @@
+<!--
+  Redefinição de senha por código, não por link.
+
+  Link exigiria deep link confiável em Web, Android e iOS, e quebra no caso comum
+  de a pessoa abrir o e-mail num dispositivo diferente do que pediu a troca. O
+  código mantém a pessoa dentro do fluxo que ela começou, em qualquer plataforma.
+-->
+<h2>Redefinir sua senha no Rewam</h2>
+
+<p>Use este código para escolher uma nova senha:</p>
+
+<p style="font-size: 28px; font-weight: 700; letter-spacing: 6px">{{ .Token }}</p>
+
+<p>O código vale por 1 hora e só pode ser usado uma vez.</p>
+
+<p>Se não foi você que pediu, ignore este e-mail — sua senha continua a mesma.</p>

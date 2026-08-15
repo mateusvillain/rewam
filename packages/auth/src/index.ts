@@ -32,12 +32,44 @@ export async function signOut(client: RewamSupabaseClient) {
   return client.auth.signOut();
 }
 
-export async function resetPassword(
+/**
+ * Redefinição de senha em três passos, por código de 6 dígitos:
+ * pedir o código, trocar o código por uma sessão, e então gravar a nova senha.
+ *
+ * O código evita depender de deep link nas três plataformas e funciona mesmo
+ * quando a pessoa abre o e-mail num dispositivo diferente do que pediu a troca.
+ */
+export const passwordResetCodeSchema = z
+  .string()
+  .trim()
+  .regex(/^\d{6}$/, 'O código tem 6 dígitos.');
+
+export const newPasswordSchema = z.object({
+  password: z.string().min(8, 'A senha precisa de pelo menos 8 caracteres.'),
+});
+export type NewPasswordInput = z.infer<typeof newPasswordSchema>;
+
+export async function requestPasswordResetCode(client: RewamSupabaseClient, email: string) {
+  return client.auth.resetPasswordForEmail(z.email().parse(email));
+}
+
+/** Um código válido cria a sessão que autoriza a troca de senha em seguida. */
+export async function verifyPasswordResetCode(
   client: RewamSupabaseClient,
   email: string,
-  redirectTo?: string,
+  code: string,
 ) {
-  return client.auth.resetPasswordForEmail(z.email().parse(email), { redirectTo });
+  return client.auth.verifyOtp({
+    email: z.email().parse(email),
+    token: passwordResetCodeSchema.parse(code),
+    type: 'recovery',
+  });
+}
+
+/** Exige a sessão criada por `verifyPasswordResetCode`. */
+export async function updatePassword(client: RewamSupabaseClient, input: NewPasswordInput) {
+  const { password } = newPasswordSchema.parse(input);
+  return client.auth.updateUser({ password });
 }
 
 export async function getCurrentUserId(client: RewamSupabaseClient): Promise<string | null> {
