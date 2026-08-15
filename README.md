@@ -33,6 +33,8 @@ pnpm db:start                 # sobe o Supabase local (requer Docker)
 pnpm --filter @rewam/app dev
 ```
 
+O `.env` fica na raiz do monorepo e vale para todos os pacotes: `apps/app/app.config.ts` o carrega antes do bundle, e o servidor MCP lê o mesmo arquivo. Só as variáveis `EXPO_PUBLIC_*` chegam ao bundle do app — as demais existem apenas no processo de build.
+
 `pnpm db:start` imprime as URLs e chaves do stack local — use-as no `.env`. O Studio fica em `http://127.0.0.1:54323` e os e-mails de teste (confirmação, recuperação de senha) chegam no Mailpit, em `http://127.0.0.1:54324`.
 
 Para trabalhar contra o projeto remoto, faça `npx supabase login` e `npx supabase link --project-ref <ref>` uma vez, e troque os valores do `.env` pelos do painel.

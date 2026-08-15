@@ -1,4 +1,5 @@
 import type { RewamSupabaseClient } from '@rewam/database';
+import type { Session } from '@supabase/supabase-js';
 import { z } from 'zod';
 
 export const credentialsSchema = z.object({
@@ -42,4 +43,27 @@ export async function resetPassword(
 export async function getCurrentUserId(client: RewamSupabaseClient): Promise<string | null> {
   const { data } = await client.auth.getUser();
   return data.user?.id ?? null;
+}
+
+/**
+ * Observa a sessão do início ao fim: o Supabase emite `INITIAL_SESSION` assim
+ * que termina de restaurar do storage, e depois um evento por login, logout ou
+ * renovação de token — inclusive quando o logout acontece em outra aba na web.
+ *
+ * Por isso não há um `getSession()` em paralelo: duas fontes para o mesmo estado
+ * abrem espaço para a resposta mais lenta sobrescrever a mais nova.
+ *
+ * Devolve a função de cancelamento da assinatura.
+ */
+export function subscribeToSession(
+  client: RewamSupabaseClient,
+  onChange: (session: Session | null) => void,
+): () => void {
+  const {
+    data: { subscription },
+  } = client.auth.onAuthStateChange((_event, session) => {
+    onChange(session);
+  });
+
+  return () => subscription.unsubscribe();
 }
