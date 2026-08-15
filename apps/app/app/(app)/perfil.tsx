@@ -1,7 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { signOut } from '@rewam/auth';
-import { deleteOwnAccount, getOwnProfile, updateOwnProfileName } from '@rewam/database';
 import { colors, spacing, typography } from '@rewam/tokens';
+import { profileNameSchema } from '@rewam/types';
 import {
   Button,
   ControlledTextField,
@@ -11,64 +10,64 @@ import {
   LoadingScreen,
   Screen,
 } from '@rewam/ui';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { StyleSheet, Text, View } from 'react-native';
 import { z } from 'zod';
-import { useSession } from '@/features/auth';
-import { supabase } from '@/lib/supabase';
+import { translateAuthError, useSession } from '@/features/auth';
+import { useDeleteAccount, useProfile, useSaveProfileName, useSignOut } from '@/features/profile';
 
-const formSchema = z.object({
-  name: z.string().trim().max(100, 'Use no máximo 100 caracteres.'),
-});
+const formSchema = z.object({ name: profileNameSchema });
 type FormValues = z.infer<typeof formSchema>;
 
 export default function PerfilScreen() {
   const { user } = useSession();
-  const queryClient = useQueryClient();
   const [isConfirmingDeletion, setIsConfirmingDeletion] = useState(false);
 
-  const profileQuery = useQuery({
-    queryKey: ['profile', user?.id],
-    queryFn: () => getOwnProfile(supabase),
-    enabled: user !== null,
-  });
+  const profile = useProfile();
+  const saveName = useSaveProfileName();
+  const signOutMutation = useSignOut();
+  const deleteAccount = useDeleteAccount();
 
   const { control, handleSubmit, reset, formState } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: { name: '' },
   });
 
-  // O formulário nasce vazio e só recebe o valor quando a consulta responde.
+  // O formulário nasce vazio e recebe o valor quando a consulta responde.
   useEffect(() => {
-    if (profileQuery.data) {
-      reset({ name: profileQuery.data.name ?? '' });
+    if (profile.data) {
+      reset({ name: profile.data.name ?? '' });
     }
-  }, [profileQuery.data, reset]);
+  }, [profile.data, reset]);
 
-  const saveName = useMutation({
-    mutationFn: ({ name }: FormValues) =>
-      updateOwnProfileName(supabase, name.length > 0 ? name : null),
-    onSuccess: (profile) => {
-      queryClient.setQueryData(['profile', user?.id], profile);
-      reset({ name: profile.name ?? '' });
-    },
-  });
+  function onSubmit({ name }: FormValues) {
+    saveName.mutate(
+      { name: name.length > 0 ? name : null, hasProfile: profile.data !== null },
+      { onSuccess: (saved) => reset({ name: saved.name ?? '' }) },
+    );
+  }
 
-  const deleteAccount = useMutation({
-    mutationFn: () => deleteOwnAccount(supabase),
-    onSuccess: async () => {
-      // A conta já não existe; encerrar a sessão evita o app seguir com um
-      // token que aponta para um usuário apagado. O guard leva ao login.
-      await signOut(supabase);
-      queryClient.clear();
-    },
-  });
-
-  if (profileQuery.isPending) {
+  if (profile.isPending) {
     return <LoadingScreen label="Carregando seu perfil" />;
+  }
+
+  if (profile.isError) {
+    return (
+      <Screen>
+        <Stack.Screen options={{ title: 'Perfil' }} />
+        <FormTitle>Não foi possível carregar seu perfil</FormTitle>
+        <FormDescription>
+          Pode ter sido uma falha de conexão. Seus dados continuam salvos.
+        </FormDescription>
+        <Button
+          label={profile.isRefetching ? 'Tentando…' : 'Tentar de novo'}
+          disabled={profile.isRefetching}
+          onPress={() => profile.refetch()}
+        />
+      </Screen>
+    );
   }
 
   return (
@@ -82,6 +81,12 @@ export default function PerfilScreen() {
         <Text style={styles.value}>{user?.email ?? '—'}</Text>
       </View>
 
+      {profile.data === null ? (
+        <FormMessage tone="neutro">
+          Seu perfil ainda não tem nome. Escolha um abaixo para salvá-lo.
+        </FormMessage>
+      ) : null}
+
       <ControlledTextField
         control={control}
         name="name"
@@ -89,13 +94,12 @@ export default function PerfilScreen() {
         error={formState.errors.name?.message}
         autoComplete="name"
         placeholder="Como quer ser chamado"
-        onSubmitEditing={handleSubmit((values) => saveName.mutate(values))}
+        onSubmitEditing={handleSubmit(onSubmit)}
       />
 
-      {profileQuery.isError ? (
-        <FormMessage>Não foi possível carregar seu perfil. Puxe para tentar de novo.</FormMessage>
+      {saveName.isError ? (
+        <FormMessage>Não foi possível salvar seu nome. Tente de novo.</FormMessage>
       ) : null}
-      {saveName.isError ? <FormMessage>Não foi possível salvar seu nome.</FormMessage> : null}
       {saveName.isSuccess && !formState.isDirty ? (
         <FormMessage tone="neutro">Nome salvo.</FormMessage>
       ) : null}
@@ -103,16 +107,20 @@ export default function PerfilScreen() {
       <Button
         label={saveName.isPending ? 'Salvando…' : 'Salvar nome'}
         disabled={saveName.isPending || !formState.isDirty}
-        onPress={handleSubmit((values) => saveName.mutate(values))}
+        onPress={handleSubmit(onSubmit)}
       />
 
       <View style={styles.divider} />
 
+      {signOutMutation.isError ? (
+        <FormMessage>{translateAuthError(signOutMutation.error)}</FormMessage>
+      ) : null}
+
       <Button
-        label={signOutMutationLabel(deleteAccount.isPending)}
+        label={signOutMutation.isPending ? 'Saindo…' : 'Sair da conta'}
         variant="ghost"
-        disabled={deleteAccount.isPending}
-        onPress={() => signOut(supabase)}
+        disabled={signOutMutation.isPending}
+        onPress={() => signOutMutation.mutate()}
       />
 
       {isConfirmingDeletion ? (
@@ -148,10 +156,6 @@ export default function PerfilScreen() {
       )}
     </Screen>
   );
-}
-
-function signOutMutationLabel(isDeleting: boolean): string {
-  return isDeleting ? 'Aguarde…' : 'Sair da conta';
 }
 
 const styles = StyleSheet.create({

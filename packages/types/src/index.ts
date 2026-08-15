@@ -75,9 +75,18 @@ export const credentialsSchema = z.object({
 });
 export type Credentials = z.infer<typeof credentialsSchema>;
 
+/** Espelha a constraint `profiles_name_length_check` no banco. */
+export const profileNameSchema = z.string().trim().max(100, 'Use no máximo 100 caracteres.');
+
 export const signUpSchema = credentialsSchema.extend({
-  name: z.string().trim().min(2, 'Informe seu nome.').max(100, 'Use no máximo 100 caracteres.'),
+  name: profileNameSchema.min(2, 'Informe seu nome.'),
 });
+
+export const profileSchema = z.object({
+  id: z.uuid(),
+  name: z.string().nullable(),
+});
+export type Profile = z.infer<typeof profileSchema>;
 export type SignUpInput = z.infer<typeof signUpSchema>;
 
 export const newPasswordSchema = z.object({ password: passwordSchema });
