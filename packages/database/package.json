@@ -10,6 +10,7 @@
     "gen:types": "supabase gen types typescript --local > src/types.generated.ts"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.86.0"
+    "@supabase/supabase-js": "^2.86.0",
+    "zod": "^4.1.13"
   }
 }

@@ -2,7 +2,7 @@
   "name": "rewam",
   "private": true,
   "version": "0.1.0",
-  "description": "Plataforma pessoal para registrar filmes e s\u00e9ries assistidos (Web, Android, iOS).",
+  "description": "Plataforma pessoal para registrar filmes e séries assistidos (Web, Android, iOS).",
   "packageManager": "pnpm@10.33.0",
   "engines": {
     "node": ">=20"
@@ -24,7 +24,8 @@
     "db:push": "supabase db push",
     "db:test:rls": "supabase/tests/run.sh supabase/tests/rls.sql",
     "db:test:profile": "supabase/tests/run.sh supabase/tests/profile_trigger.sql",
-    "db:test": "pnpm db:test:rls && pnpm db:test:profile"
+    "db:test": "pnpm db:test:rls && pnpm db:test:profile && pnpm db:test:delete",
+    "db:test:delete": "supabase/tests/run.sh supabase/tests/delete_account.sql"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
