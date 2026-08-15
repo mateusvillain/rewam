@@ -1,3 +1,4 @@
+import { catalogEpisodeSchema, catalogTitleDetailSchema } from '@rewam/types';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -7,7 +8,12 @@ import {
   normalizeSearchResults,
   normalizeTvDetail,
 } from './normalize';
-import { tmdbMovieDetailSchema, tmdbSearchResultSchema } from './payloads';
+import {
+  tmdbEpisodeSchema,
+  tmdbMovieDetailSchema,
+  tmdbSearchResultSchema,
+  tmdbTvDetailSchema,
+} from './payloads';
 
 describe('normalizeMovieDetail', () => {
   const base = {
@@ -201,6 +207,63 @@ describe('normalizeSearchResults', () => {
 
     expect(results.map((result) => result.tmdbId)).toEqual([27205, 1396]);
   });
+
+  it('aplica o tipo de apoio a uma página inteira de /search/movie', () => {
+    const results = normalizeSearchResults(
+      [
+        { id: 27205, title: 'A Origem' },
+        { id: 155, title: 'Batman: O Cavaleiro das Trevas' },
+      ],
+      'movie',
+    );
+
+    expect(results).toHaveLength(2);
+    expect(results.every((result) => result.mediaType === 'movie')).toBe(true);
+  });
+});
+
+describe('saída conforme os contratos de @rewam/types', () => {
+  // Sem isto o tipo de retorno é só asserção do TypeScript: nada garante que o
+  // valor produzido sobreviveria ao schema que o resto do produto exige.
+
+  it('produz detalhe de filme válido, inclusive sem duração', () => {
+    const comDuracao = normalizeMovieDetail({ id: 27205, title: 'A Origem', runtime: 148 });
+    const semDuracao = normalizeMovieDetail({ id: 27205, title: 'A Origem', runtime: 0 });
+
+    expect(() => catalogTitleDetailSchema.parse(comDuracao)).not.toThrow();
+    expect(() => catalogTitleDetailSchema.parse(semDuracao)).not.toThrow();
+  });
+
+  it('produz detalhe de série válido', () => {
+    const serie = normalizeTvDetail({ id: 1396, name: 'Breaking Bad', episode_run_time: [45] });
+
+    expect(() => catalogTitleDetailSchema.parse(serie)).not.toThrow();
+  });
+
+  it('produz episódio válido', () => {
+    const episodio = normalizeEpisode({
+      id: 62085,
+      season_number: 1,
+      episode_number: 1,
+      runtime: 58,
+    });
+
+    expect(() => catalogEpisodeSchema.parse(episodio)).not.toThrow();
+  });
+
+  it('nunca devolve duração fracionária arredondada para zero', () => {
+    // `0.4` é positivo, mas arredonda para zero — que o titleSchema rejeita.
+    const quaseZero = normalizeMovieDetail({ id: 27205, title: 'A Origem', runtime: 0.4 });
+
+    expect(quaseZero.runtimeMinutes).toBeNull();
+    expect(() => catalogTitleDetailSchema.parse(quaseZero)).not.toThrow();
+  });
+
+  it('arredonda duração fracionária que ainda é uma duração', () => {
+    expect(
+      normalizeMovieDetail({ id: 27205, title: 'A Origem', runtime: 148.6 }).runtimeMinutes,
+    ).toBe(149);
+  });
 });
 
 describe('schemas de payload', () => {
@@ -219,5 +282,26 @@ describe('schemas de payload', () => {
 
   it('recusa detalhe de filme sem título, que não daria para exibir nem gravar', () => {
     expect(() => tmdbMovieDetailSchema.parse({ id: 27205, runtime: 148 })).toThrow();
+  });
+
+  it('recusa detalhe cujo título é só espaço', () => {
+    expect(() => tmdbMovieDetailSchema.parse({ id: 27205, title: '   ' })).toThrow();
+    expect(() => tmdbTvDetailSchema.parse({ id: 1396, name: '  ' })).toThrow();
+  });
+
+  it('apara o título do detalhe', () => {
+    expect(tmdbMovieDetailSchema.parse({ id: 27205, title: '  A Origem  ' }).title).toBe(
+      'A Origem',
+    );
+  });
+
+  it('aceita detalhe de série sem duração típica de episódio', () => {
+    expect(
+      tmdbTvDetailSchema.parse({ id: 1396, name: 'Breaking Bad' }).episode_run_time,
+    ).toBeUndefined();
+  });
+
+  it('recusa episódio sem numeração, que não daria para ordenar nem gravar', () => {
+    expect(() => tmdbEpisodeSchema.parse({ id: 62085, season_number: 1 })).toThrow();
   });
 });

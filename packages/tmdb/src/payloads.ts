@@ -4,8 +4,10 @@ import { z } from 'zod';
  * Formato bruto do TMDB, como ele chega na rede.
  *
  * Fica neste pacote, e não em `@rewam/types`, porque não é contrato nosso: é a
- * forma de um fornecedor externo, que só o cliente do TMDB precisa conhecer. O
- * resto do produto consome as formas normalizadas de `@rewam/types`.
+ * forma de um fornecedor externo. Os tipos são exportados porque os
+ * normalizadores os recebem como entrada, mas quem consome catálogo deve usar
+ * as formas normalizadas de `@rewam/types` — estas aqui mudam quando o TMDB
+ * mudar.
  *
  * Os schemas são deliberadamente frouxos. O TMDB acrescenta campos sem aviso e
  * devolve `""` e `0` no lugar de "não sei", então validar aqui com rigor
@@ -15,6 +17,16 @@ import { z } from 'zod';
 
 const tmdbId = z.number().int().positive();
 const looseText = z.string().nullish();
+
+/**
+ * Título de um detalhe, já aparado e obrigatório.
+ *
+ * Diferente da busca, onde um item sem título é descartado e o resto da página
+ * segue, um detalhe sem título não tem o que exibir nem o que gravar em
+ * `titles` — cujo contrato exige `min(1)`. Recusar aqui, na fronteira, evita
+ * produzir um título de catálogo que o nosso próprio schema rejeitaria depois.
+ */
+const requiredTitle = z.string().trim().min(1);
 
 /** Um item de `/search/*`. Em `/search/multi` também vêm pessoas, filtradas na normalização. */
 export const tmdbSearchResultSchema = z.object({
@@ -34,7 +46,7 @@ export type TmdbSearchResult = z.infer<typeof tmdbSearchResultSchema>;
 
 export const tmdbMovieDetailSchema = z.object({
   id: tmdbId,
-  title: z.string(),
+  title: requiredTitle,
   original_title: looseText,
   poster_path: looseText,
   release_date: looseText,
@@ -45,7 +57,7 @@ export type TmdbMovieDetail = z.infer<typeof tmdbMovieDetailSchema>;
 
 export const tmdbTvDetailSchema = z.object({
   id: tmdbId,
-  name: z.string(),
+  name: requiredTitle,
   original_name: looseText,
   poster_path: looseText,
   first_air_date: looseText,

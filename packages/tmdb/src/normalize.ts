@@ -28,9 +28,15 @@ function toNullableText(value: string | null | undefined): string | null {
  * O TMDB devolve `0` para filme sem duração cadastrada, e zero minutos não é uma
  * duração — some junto com `null` e `undefined`. A regra de validade é a mesma
  * que soma durações no resto do produto, por isso vem de `@rewam/utils`.
+ *
+ * A validade é conferida duas vezes de propósito: o TMDB às vezes manda fração,
+ * e um valor como `0.4` é positivo mas arredonda para zero. Sem a segunda
+ * checagem sairia `runtimeMinutes: 0`, que o `titleSchema` rejeita.
  */
 function toRuntimeMinutes(value: number | null | undefined): number | null {
-  return isValidDuration(value) ? Math.round(value) : null;
+  if (!isValidDuration(value)) return null;
+  const minutes = Math.round(value);
+  return isValidDuration(minutes) ? minutes : null;
 }
 
 /** Série não tem duração única: usamos a primeira duração típica que seja válida. */
