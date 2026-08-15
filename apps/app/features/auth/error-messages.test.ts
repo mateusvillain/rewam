@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classifyAuthError, translateAuthError } from './error-messages';
+import { classifyAuthError, isUnconfirmedEmailError, translateAuthError } from './error-messages';
 
 describe('translateAuthError', () => {
   it('prefere o código ao texto da mensagem', () => {
@@ -46,6 +46,14 @@ describe('translateAuthError', () => {
     expect(classifyAuthError({ code: 'user_already_exists', message: '' })).toBe('user');
   });
 
+  it('reconhece o texto real de código expirado do Supabase', () => {
+    // "Email link is invalid or has expired" é o que o serviço devolve de fato;
+    // um regex estreito demais mandava isso para a mensagem genérica.
+    expect(translateAuthError({ message: 'Email link is invalid or has expired' })).toContain(
+      'inválido ou expirado',
+    );
+  });
+
   it('não repassa mensagem técnica desconhecida', () => {
     const traduzido = translateAuthError({ message: 'PGRST301: JWSError JWSInvalidSignature' });
     expect(traduzido).not.toContain('PGRST301');
@@ -56,6 +64,18 @@ describe('translateAuthError', () => {
     expect(translateAuthError(null)).toBe(
       'Não foi possível concluir agora. Tente de novo em instantes.',
     );
+  });
+});
+
+describe('isUnconfirmedEmailError', () => {
+  it('reconhece pelo código e pelo texto', () => {
+    expect(isUnconfirmedEmailError({ code: 'email_not_confirmed', message: '' })).toBe(true);
+    expect(isUnconfirmedEmailError({ message: 'Email not confirmed' })).toBe(true);
+  });
+
+  it('não confunde com credenciais inválidas', () => {
+    expect(isUnconfirmedEmailError({ code: 'invalid_credentials', message: '' })).toBe(false);
+    expect(isUnconfirmedEmailError(null)).toBe(false);
   });
 });
 

@@ -12,16 +12,10 @@ import {
   Screen,
 } from '@rewam/ui';
 import { Link, router, Stack, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import {
-  canResend,
-  classifyAuthError,
-  remainingCooldownSeconds,
-  resendLabel,
-  translateAuthError,
-} from '@/features/auth';
+import { MissingEmailNotice, translateAuthError, useResendCooldown } from '@/features/auth';
 import { supabase } from '@/lib/supabase';
 
 const formSchema = z.object({ code: verificationCodeSchema });
@@ -29,12 +23,9 @@ type FormValues = z.infer<typeof formSchema>;
 
 export default function ConfirmarEmailScreen() {
   const { email } = useLocalSearchParams<{ email?: string }>();
-  const [lastSentAt, setLastSentAt] = useState<number | null>(null);
-  const [remaining, setRemaining] = useState(0);
-  const [feedback, setFeedback] = useState<{ kind: 'erro' | 'neutro'; message: string } | null>(
-    null,
-  );
-  const [isResending, setIsResending] = useState(false);
+
+  const send = useCallback(() => resendSignUpCode(supabase, email ?? ''), [email]);
+  const { resend, feedback, isBlocked, label: resendButtonLabel } = useResendCooldown(send);
 
   const {
     control,
@@ -45,20 +36,6 @@ export default function ConfirmarEmailScreen() {
     resolver: zodResolver(formSchema),
     defaultValues: { code: '' },
   });
-
-  // Um tique por segundo só enquanto há espera a mostrar; o intervalo para
-  // sozinho ao zerar, em vez de ficar rodando o tempo todo em segundo plano.
-  useEffect(() => {
-    if (lastSentAt === null) return;
-
-    function tick() {
-      setRemaining(remainingCooldownSeconds(lastSentAt, Date.now()));
-    }
-
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [lastSentAt]);
 
   async function onSubmit({ code }: FormValues) {
     if (!email) return;
@@ -74,37 +51,12 @@ export default function ConfirmarEmailScreen() {
     router.replace('/');
   }
 
-  async function onResend() {
-    if (!email || !canResend(lastSentAt, Date.now())) return;
-
-    setIsResending(true);
-    setFeedback(null);
-
-    const { error } = await resendSignUpCode(supabase, email);
-
-    if (error && classifyAuthError(error) === 'infra') {
-      setFeedback({ kind: 'erro', message: translateAuthError(error) });
-    } else {
-      // Sucesso e erro de usuário respondem igual: esta tela não pode revelar
-      // se o e-mail digitado corresponde a uma conta pendente.
-      setFeedback({ kind: 'neutro', message: 'Enviamos um novo código.' });
-      setLastSentAt(Date.now());
-    }
-
-    setIsResending(false);
-  }
-
   if (!email) {
     return (
-      <Screen>
-        <Stack.Screen options={{ title: 'Confirmar e-mail' }} />
-        <FormTitle>Precisamos do seu e-mail</FormTitle>
-        <FormDescription>
-          O código é enviado para um e-mail específico, e esta tela foi aberta sem essa informação.
-          Entre com sua conta para receber um novo código.
-        </FormDescription>
-        <Button label="Ir para o login" onPress={() => router.replace('/(auth)/entrar')} />
-      </Screen>
+      <MissingEmailNotice
+        description="O código é enviado para um e-mail específico, e esta tela foi aberta sem essa informação. Entre com sua conta para receber um novo código."
+        action={{ label: 'Ir para o login', href: '/(auth)/entrar' }}
+      />
     );
   }
 
@@ -130,8 +82,7 @@ export default function ConfirmarEmailScreen() {
         onSubmitEditing={handleSubmit(onSubmit)}
       />
 
-      <FormMessage>{errors.root?.message}</FormMessage>
-      {feedback ? <FormMessage tone={feedback.kind}>{feedback.message}</FormMessage> : null}
+      {feedback ? <FormMessage tone={feedback.tone}>{feedback.message}</FormMessage> : null}
 
       <Button
         label={isSubmitting ? 'Confirmando…' : 'Confirmar'}
@@ -139,12 +90,7 @@ export default function ConfirmarEmailScreen() {
         onPress={handleSubmit(onSubmit)}
       />
 
-      <Button
-        label={isResending ? 'Reenviando…' : resendLabel(remaining)}
-        variant="ghost"
-        disabled={isResending || remaining > 0}
-        onPress={onResend}
-      />
+      <Button label={resendButtonLabel} variant="ghost" disabled={isBlocked} onPress={resend} />
 
       <FormLinks>
         <Link href="/(auth)/entrar" style={formLinkStyle}>

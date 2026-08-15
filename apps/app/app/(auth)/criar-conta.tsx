@@ -12,7 +12,7 @@ import {
 } from '@rewam/ui';
 import { Link, router, Stack } from 'expo-router';
 import { useForm } from 'react-hook-form';
-import { classifyAuthError, resolveSignUpOutcome, translateAuthError } from '@/features/auth';
+import { classifyAuthError, translateAuthError } from '@/features/auth';
 import { supabase } from '@/lib/supabase';
 
 export default function CriarContaScreen() {
@@ -47,7 +47,7 @@ export default function CriarContaScreen() {
     // Com a confirmação ligada, o cadastro não devolve sessão: falta digitar o
     // código. O caminho é o mesmo do e-mail já cadastrado, de propósito — quem
     // tenta descobrir contas alheias vê sempre a mesma tela.
-    if (resolveSignUpOutcome(data.session !== null) === 'needsConfirmation') {
+    if (data.session === null) {
       goToConfirmation(values.email);
       return;
     }

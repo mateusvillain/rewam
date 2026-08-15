@@ -15,17 +15,16 @@ import {
   Screen,
 } from '@rewam/ui';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useCallback } from 'react';
 import { useForm } from 'react-hook-form';
-import { classifyAuthError, translateAuthError } from '@/features/auth';
+import { MissingEmailNotice, translateAuthError, useResendCooldown } from '@/features/auth';
 import { supabase } from '@/lib/supabase';
-
-type ResendState = { kind: 'sucesso' | 'erro'; message: string } | null;
 
 export default function NovaSenhaScreen() {
   const { email } = useLocalSearchParams<{ email?: string }>();
-  const [resend, setResend] = useState<ResendState>(null);
-  const [isResending, setIsResending] = useState(false);
+
+  const send = useCallback(() => requestPasswordResetCode(supabase, email ?? ''), [email]);
+  const { resend, feedback, isBlocked, label: resendButtonLabel } = useResendCooldown(send);
 
   const {
     control,
@@ -65,40 +64,12 @@ export default function NovaSenhaScreen() {
     router.replace('/');
   }
 
-  async function onResend() {
-    if (!email) return;
-
-    setIsResending(true);
-    setResend(null);
-
-    const { error } = await requestPasswordResetCode(supabase, email);
-
-    if (!error) {
-      setResend({ kind: 'sucesso', message: 'Enviamos um novo código.' });
-    } else if (classifyAuthError(error) === 'infra') {
-      setResend({ kind: 'erro', message: translateAuthError(error) });
-    } else {
-      // Mesma política da tela anterior: nada aqui pode revelar se a conta existe.
-      setResend({ kind: 'sucesso', message: 'Enviamos um novo código.' });
-    }
-
-    setIsResending(false);
-  }
-
   if (!email) {
     return (
-      <Screen>
-        <Stack.Screen options={{ title: 'Nova senha' }} />
-        <FormTitle>Precisamos do seu e-mail</FormTitle>
-        <FormDescription>
-          O código é enviado para um e-mail específico, e esta tela foi aberta sem essa informação.
-          Recomece o pedido para receber um código novo.
-        </FormDescription>
-        <Button
-          label="Pedir código de redefinição"
-          onPress={() => router.replace('/(auth)/recuperar-senha')}
-        />
-      </Screen>
+      <MissingEmailNotice
+        description="O código é enviado para um e-mail específico, e esta tela foi aberta sem essa informação. Recomece o pedido para receber um código novo."
+        action={{ label: 'Pedir código de redefinição', href: '/(auth)/recuperar-senha' }}
+      />
     );
   }
 
@@ -135,11 +106,7 @@ export default function NovaSenhaScreen() {
       />
 
       <FormMessage>{errors.root?.message}</FormMessage>
-      {resend ? (
-        <FormMessage tone={resend.kind === 'erro' ? 'erro' : 'neutro'}>
-          {resend.message}
-        </FormMessage>
-      ) : null}
+      {feedback ? <FormMessage tone={feedback.tone}>{feedback.message}</FormMessage> : null}
 
       <Button
         label={isSubmitting ? 'Salvando…' : 'Salvar nova senha'}
@@ -147,12 +114,7 @@ export default function NovaSenhaScreen() {
         onPress={handleSubmit(onSubmit)}
       />
 
-      <Button
-        label={isResending ? 'Reenviando…' : 'Reenviar código'}
-        variant="ghost"
-        disabled={isResending}
-        onPress={onResend}
-      />
+      <Button label={resendButtonLabel} variant="ghost" disabled={isBlocked} onPress={resend} />
     </Screen>
   );
 }
