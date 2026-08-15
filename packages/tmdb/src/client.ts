@@ -11,9 +11,11 @@ export type TmdbClientOptions = {
 export class TmdbError extends Error {
   constructor(
     message: string,
+    /** Status HTTP, ou `0` quando não houve resposta — rede fora, DNS, timeout. */
     readonly status: number,
+    options?: ErrorOptions,
   ) {
-    super(message);
+    super(message, options);
     this.name = 'TmdbError';
   }
 }
@@ -36,12 +38,20 @@ export function createTmdbClient({
         if (value !== undefined) url.searchParams.set(key, String(value));
       }
 
-      const response = await fetchImpl(url.toString(), {
-        headers: {
-          Authorization: `Bearer ${readToken}`,
-          accept: 'application/json',
-        },
-      });
+      // Sem este try, falha de rede sobe como TypeError cru e quem chama teria
+      // de tratar dois tipos de erro para a mesma pergunta: "deu para falar com
+      // o TMDB?". Com status 0, um único `catch (TmdbError)` cobre os dois.
+      let response: Response;
+      try {
+        response = await fetchImpl(url.toString(), {
+          headers: {
+            Authorization: `Bearer ${readToken}`,
+            accept: 'application/json',
+          },
+        });
+      } catch (cause) {
+        throw new TmdbError(`Não foi possível falar com o TMDB em ${path}`, 0, { cause });
+      }
 
       if (!response.ok) {
         throw new TmdbError(`TMDB respondeu ${response.status} em ${path}`, response.status);
