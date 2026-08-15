@@ -12,7 +12,7 @@ import {
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { WatchEventForm } from '@/features/watch';
+import { WatchActions } from '@/features/watch';
 
 import {
   CatalogErrorNotice,
@@ -30,11 +30,11 @@ import {
  * É onde a pessoa confirma que escolheu o título certo e registra a exibição.
  *
  * O título é gravado no banco ao abrir a tela, antes de qualquer ação: é o
- * `titles.id` dessa gravação que `watch_events` referencia, e é por isso que o
- * formulário depende dela e não do id do TMDB.
+ * `titles.id` dessa gravação que `watch_events` referencia, e é por isso que a
+ * ação depende dela e não do id do TMDB.
  *
- * O histórico das exibições deste título entra logo abaixo do formulário na
- * E4.4; a invalidação de cache que vai alimentá-lo já é feita no registro.
+ * A lista das exibições, com data e numeração de reassistida, entra abaixo da
+ * ação na E4.4; a invalidação de cache que vai alimentá-la já é feita aqui.
  */
 export default function MovieDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -107,7 +107,7 @@ export default function MovieDetailScreen() {
             estrangeira. Enquanto grava, o lugar dela fica ocupado — em vez de
             aparecer de repente e mover o resto da tela. */}
         <View style={styles.action}>
-          <WatchAction
+          <WatchSection
             titleId={savedTitle?.id ?? null}
             runtimeMinutes={movie.runtimeMinutes}
             saveFailed={saveFailed}
@@ -144,12 +144,15 @@ export default function MovieDetailScreen() {
 /**
  * O que ocupa o lugar da ação de registrar, nos três estados possíveis.
  *
+ * O nome no plural, `WatchActions`, é o componente da feature; este aqui só
+ * decide qual dos três estados mostrar.
+ *
  * Separado da tela porque são três, e um ternário aninhado esconderia qual
  * deles é o normal. Enquanto o título não está gravado, o espaço fica ocupado
  * em vez de vazio: a ação aparecendo de repente empurraria o resto da tela para
  * baixo justamente quando a pessoa está lendo a sinopse.
  */
-function WatchAction({
+function WatchSection({
   titleId,
   runtimeMinutes,
   saveFailed,
@@ -159,7 +162,7 @@ function WatchAction({
   saveFailed: boolean;
 }) {
   if (titleId !== null) {
-    return <WatchEventForm titleId={titleId} runtimeMinutes={runtimeMinutes} />;
+    return <WatchActions titleId={titleId} runtimeMinutes={runtimeMinutes} />;
   }
 
   // O aviso de falha, com o botão de tentar de novo, já é mostrado logo abaixo;
