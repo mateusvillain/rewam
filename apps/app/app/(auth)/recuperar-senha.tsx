@@ -1,17 +1,16 @@
+import { zodResolver } from '@hookform/resolvers/zod';
 import { requestPasswordResetCode } from '@rewam/auth';
 import { colors, spacing, typography } from '@rewam/tokens';
+import { emailSchema } from '@rewam/types';
 import { Button, Screen, TextField } from '@rewam/ui';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { router, Stack } from 'expo-router';
 import { Controller, useForm } from 'react-hook-form';
 import { StyleSheet, Text } from 'react-native';
 import { z } from 'zod';
-import { translateAuthError } from '@/features/auth';
+import { classifyAuthError, translateAuthError } from '@/features/auth';
 import { supabase } from '@/lib/supabase';
 
-const formSchema = z.object({
-  email: z.email('Informe um e-mail válido.'),
-});
+const formSchema = z.object({ email: emailSchema });
 type FormValues = z.infer<typeof formSchema>;
 
 export default function RecuperarSenhaScreen() {
@@ -29,9 +28,10 @@ export default function RecuperarSenhaScreen() {
     const { error } = await requestPasswordResetCode(supabase, email);
 
     // Um e-mail inexistente não pode ser distinguível de um existente: revelar
-    // isso entregaria quais endereços têm conta. Só erros de infraestrutura
-    // aparecem para a pessoa.
-    if (error && /rate limit|network|for security purposes/i.test(error.message)) {
+    // isso entregaria quais endereços têm conta. Só falha de infraestrutura
+    // aparece — a classificação vive em um lugar só, junto das mensagens, para
+    // não haver duas listas capazes de divergir.
+    if (error && classifyAuthError(error) === 'infra') {
       setError('root', { message: translateAuthError(error) });
       return;
     }

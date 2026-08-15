@@ -52,3 +52,39 @@ export const watchStatsSchema = z.object({
   unknownDurationEvents: z.number().int().nonnegative(),
 });
 export type WatchStats = z.infer<typeof watchStatsSchema>;
+
+// ---------------------------------------------------------------------------
+// Autenticação
+// ---------------------------------------------------------------------------
+// Contratos de formulário vivem aqui para que telas, `@rewam/auth` e MCP usem a
+// mesma regra e a mesma mensagem, em vez de cada um redefinir a sua.
+
+export const emailSchema = z.email('Informe um e-mail válido.');
+
+export const passwordSchema = z.string().min(8, 'A senha precisa de pelo menos 8 caracteres.');
+
+/** Código enviado por e-mail na confirmação de cadastro e na troca de senha. */
+export const verificationCodeSchema = z
+  .string()
+  .trim()
+  .regex(/^\d{6}$/, 'O código tem 6 dígitos.');
+
+export const credentialsSchema = z.object({
+  email: emailSchema,
+  password: passwordSchema,
+});
+export type Credentials = z.infer<typeof credentialsSchema>;
+
+export const signUpSchema = credentialsSchema.extend({
+  name: z.string().trim().min(2, 'Informe seu nome.').max(100, 'Use no máximo 100 caracteres.'),
+});
+export type SignUpInput = z.infer<typeof signUpSchema>;
+
+export const newPasswordSchema = z.object({ password: passwordSchema });
+export type NewPasswordInput = z.infer<typeof newPasswordSchema>;
+
+export const passwordResetSchema = z.object({
+  code: verificationCodeSchema,
+  password: passwordSchema,
+});
+export type PasswordResetInput = z.infer<typeof passwordResetSchema>;

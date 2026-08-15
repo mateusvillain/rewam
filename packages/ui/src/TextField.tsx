@@ -20,7 +20,11 @@ export function TextField({ label, error, hint, style, ...rest }: TextFieldProps
       </Text>
 
       <TextInput
-        accessibilityLabel={label}
+        // `aria-describedby` e `role="alert"` só existem na web. No iOS e no
+        // Android o leitor de tela não os enxerga, então erro e dica entram no
+        // próprio rótulo acessível — sem isso, quem usa leitor de tela no
+        // celular ouviria o campo sem saber por que ele foi recusado.
+        accessibilityLabel={[label, error ?? hint].filter(Boolean).join('. ')}
         aria-labelledby={`${id}-label`}
         aria-describedby={describedBy}
         aria-invalid={error ? true : undefined}

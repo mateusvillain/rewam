@@ -1,27 +1,25 @@
-import { requestPasswordResetCode, updatePassword, verifyPasswordResetCode } from '@rewam/auth';
-import { colors, spacing, typography } from '@rewam/tokens';
-import { Button, Screen, TextField } from '@rewam/ui';
 import { zodResolver } from '@hookform/resolvers/zod';
+import {
+  requestPasswordResetCode,
+  signOut,
+  updatePassword,
+  verifyPasswordResetCode,
+} from '@rewam/auth';
+import { colors, spacing, typography } from '@rewam/tokens';
+import { passwordResetSchema, type PasswordResetInput } from '@rewam/types';
+import { Button, Screen, TextField } from '@rewam/ui';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { StyleSheet, Text } from 'react-native';
-import { z } from 'zod';
-import { translateAuthError } from '@/features/auth';
+import { classifyAuthError, translateAuthError } from '@/features/auth';
 import { supabase } from '@/lib/supabase';
 
-const formSchema = z.object({
-  code: z
-    .string()
-    .trim()
-    .regex(/^\d{6}$/, 'O código tem 6 dígitos.'),
-  password: z.string().min(8, 'A senha precisa de pelo menos 8 caracteres.'),
-});
-type FormValues = z.infer<typeof formSchema>;
+type ResendState = { kind: 'sucesso' | 'erro'; message: string } | null;
 
 export default function NovaSenhaScreen() {
   const { email } = useLocalSearchParams<{ email?: string }>();
-  const [resendMessage, setResendMessage] = useState<string | null>(null);
+  const [resend, setResend] = useState<ResendState>(null);
   const [isResending, setIsResending] = useState(false);
 
   const {
@@ -29,12 +27,12 @@ export default function NovaSenhaScreen() {
     handleSubmit,
     setError,
     formState: { errors, isSubmitting },
-  } = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
+  } = useForm<PasswordResetInput>({
+    resolver: zodResolver(passwordResetSchema),
     defaultValues: { code: '', password: '' },
   });
 
-  async function onSubmit({ code, password }: FormValues) {
+  async function onSubmit({ code, password }: PasswordResetInput) {
     if (!email) {
       setError('root', { message: 'Recomece informando seu e-mail.' });
       return;
@@ -49,7 +47,13 @@ export default function NovaSenhaScreen() {
 
     const { error: updateError } = await updatePassword(supabase, { password });
     if (updateError) {
-      setError('root', { message: translateAuthError(updateError) });
+      // A verificação já criou sessão válida. Sem encerrá-la, quem falha aqui
+      // fica autenticado sem ter trocado a senha — um código de e-mail viraria
+      // login. O código também já foi consumido, então o caminho é pedir outro.
+      await signOut(supabase);
+      setError('root', {
+        message: `${translateAuthError(updateError)} Peça um novo código para tentar de novo.`,
+      });
       return;
     }
 
@@ -60,11 +64,37 @@ export default function NovaSenhaScreen() {
     if (!email) return;
 
     setIsResending(true);
-    setResendMessage(null);
+    setResend(null);
 
     const { error } = await requestPasswordResetCode(supabase, email);
-    setResendMessage(error ? translateAuthError(error) : 'Enviamos um novo código.');
+
+    if (!error) {
+      setResend({ kind: 'sucesso', message: 'Enviamos um novo código.' });
+    } else if (classifyAuthError(error) === 'infra') {
+      setResend({ kind: 'erro', message: translateAuthError(error) });
+    } else {
+      // Mesma política da tela anterior: nada aqui pode revelar se a conta existe.
+      setResend({ kind: 'sucesso', message: 'Enviamos um novo código.' });
+    }
+
     setIsResending(false);
+  }
+
+  if (!email) {
+    return (
+      <Screen>
+        <Stack.Screen options={{ title: 'Nova senha' }} />
+        <Text style={styles.title}>Precisamos do seu e-mail</Text>
+        <Text style={styles.body}>
+          O código é enviado para um e-mail específico, e esta tela foi aberta sem essa informação.
+          Recomece o pedido para receber um código novo.
+        </Text>
+        <Button
+          label="Pedir código de redefinição"
+          onPress={() => router.replace('/(auth)/recuperar-senha')}
+        />
+      </Screen>
+    );
   }
 
   return (
@@ -73,9 +103,7 @@ export default function NovaSenhaScreen() {
 
       <Text style={styles.title}>Escolha uma nova senha</Text>
       <Text style={styles.body}>
-        {email
-          ? `Digite o código que enviamos para ${email} e a senha que passará a valer.`
-          : 'Recomece pela tela de recuperação para receber um código.'}
+        Digite o código que enviamos para {email} e a senha que passará a valer.
       </Text>
 
       <Controller
@@ -116,18 +144,20 @@ export default function NovaSenhaScreen() {
       />
 
       {errors.root?.message ? <Text style={styles.error}>{errors.root.message}</Text> : null}
-      {resendMessage ? <Text style={styles.info}>{resendMessage}</Text> : null}
+      {resend ? (
+        <Text style={resend.kind === 'erro' ? styles.error : styles.info}>{resend.message}</Text>
+      ) : null}
 
       <Button
         label={isSubmitting ? 'Salvando…' : 'Salvar nova senha'}
-        disabled={isSubmitting || !email}
+        disabled={isSubmitting}
         onPress={handleSubmit(onSubmit)}
       />
 
       <Button
         label={isResending ? 'Reenviando…' : 'Reenviar código'}
         variant="ghost"
-        disabled={isResending || !email}
+        disabled={isResending}
         onPress={onResend}
       />
     </Screen>
