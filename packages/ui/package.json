@@ -9,11 +9,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@rewam/tmdb": "workspace:*",
     "@rewam/tokens": "workspace:*"
   },
   "peerDependencies": {
     "react": "*",
-    "react-native": "*",
-    "react-hook-form": "*"
+    "react-hook-form": "*",
+    "react-native": "*"
   }
 }
