@@ -201,6 +201,9 @@ importers:
 
   packages/ui:
     dependencies:
+      '@rewam/tmdb':
+        specifier: workspace:*
+        version: link:../tmdb
       '@rewam/tokens':
         specifier: workspace:*
         version: link:../tokens
