@@ -1,0 +1,37 @@
+node_modules/
+.pnpm-store/
+
+# builds
+dist/
+build/
+web-build/
+*.tsbuildinfo
+
+# expo
+.expo/
+.expo-shared/
+android/
+ios/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
+# ambiente
+.env
+.env.*
+!.env.example
+
+# supabase local
+supabase/.branches/
+supabase/.temp/
+
+# turbo
+.turbo/
+
+# sistema/editor
+.DS_Store
+*.log
+coverage/
