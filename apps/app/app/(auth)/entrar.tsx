@@ -12,7 +12,7 @@ import {
 } from '@rewam/ui';
 import { Link, router, Stack } from 'expo-router';
 import { useForm } from 'react-hook-form';
-import { translateAuthError } from '@/features/auth';
+import { isUnconfirmedEmailError, translateAuthError } from '@/features/auth';
 import { supabase } from '@/lib/supabase';
 
 export default function EntrarScreen() {
@@ -30,6 +30,14 @@ export default function EntrarScreen() {
     const { error } = await signIn(supabase, values);
 
     if (error) {
+      // Conta criada mas não confirmada não é um beco: quem parou no meio do
+      // cadastro volta direto para a tela de código, sem recomeçar. Isso não
+      // revela conta alheia — o Supabase só responde assim com a senha correta.
+      if (isUnconfirmedEmailError(error)) {
+        router.push({ pathname: '/(auth)/confirmar-email', params: { email: values.email } });
+        return;
+      }
+
       setError('root', { message: translateAuthError(error) });
       return;
     }

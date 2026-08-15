@@ -223,7 +223,8 @@ enable_signup = true
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
 # If enabled, users need to confirm their email address before signing in.
-enable_confirmations = false
+# Ligado: o cadastro só se conclui depois do código de 6 dígitos (REW-50).
+enable_confirmations = true
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
 secure_password_change = false
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
@@ -247,6 +248,13 @@ otp_expiry = 3600
 # [auth.email.template.invite]
 # subject = "You have been invited"
 # content_path = "./supabase/templates/invite.html"
+
+# Confirmação de cadastro por código de 6 dígitos, pelo mesmo motivo da
+# redefinição de senha: link exige deep link confiável nas três plataformas e
+# quebra quando o e-mail é aberto em outro dispositivo.
+[auth.email.template.confirmation]
+subject = "Seu código de confirmação no Rewam"
+content_path = "./supabase/templates/confirmation.html"
 
 # Redefinição de senha por código de 6 dígitos: o template expõe {{ .Token }}
 # em vez de {{ .ConfirmationURL }}, porque link exigiria deep link confiável nas

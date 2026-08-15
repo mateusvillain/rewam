@@ -1,0 +1,17 @@
+<!--
+  Confirmação de cadastro por código, não por link.
+
+  O link exigiria deep link confiável em Web, Android e iOS e quebra quando a
+  pessoa abre o e-mail num dispositivo diferente do que iniciou o cadastro. O
+  código mantém o fluxo onde ele começou, em qualquer plataforma — e é o mesmo
+  mecanismo já usado na redefinição de senha.
+-->
+<h2>Confirme seu e-mail no Rewam</h2>
+
+<p>Use este código para concluir seu cadastro:</p>
+
+<p style="font-size: 28px; font-weight: 700; letter-spacing: 6px">{{ .Token }}</p>
+
+<p>O código vale por 1 hora e só pode ser usado uma vez.</p>
+
+<p>Se não foi você que criou a conta, ignore este e-mail.</p>

@@ -16,7 +16,13 @@ type Entry = { message: string; kind: AuthErrorKind };
 const BY_CODE: Record<string, Entry> = {
   invalid_credentials: { message: 'E-mail ou senha incorretos.', kind: 'user' },
   email_not_confirmed: { message: 'Confirme seu e-mail antes de entrar.', kind: 'user' },
-  otp_expired: { message: 'O código expirou. Peça um novo.', kind: 'user' },
+  // O Supabase devolve otp_expired tanto para código errado quanto para código
+  // vencido — verificado em execução. A mensagem precisa cobrir os dois casos,
+  // senão quem errou um dígito é mandado pedir um código que ainda vale.
+  otp_expired: {
+    message: 'Código inválido ou expirado. Confira os 6 dígitos ou peça um novo.',
+    kind: 'user',
+  },
   otp_disabled: { message: 'Código inválido. Peça um novo.', kind: 'user' },
   user_already_exists: { message: 'Já existe uma conta com esse e-mail.', kind: 'user' },
   email_exists: { message: 'Já existe uma conta com esse e-mail.', kind: 'user' },
@@ -38,7 +44,10 @@ const BY_CODE: Record<string, Entry> = {
 const BY_MESSAGE: Array<{ match: RegExp; entry: Entry }> = [
   { match: /invalid login credentials/i, entry: BY_CODE.invalid_credentials! },
   { match: /email not confirmed/i, entry: BY_CODE.email_not_confirmed! },
-  { match: /token has expired|expired/i, entry: BY_CODE.otp_expired! },
+  // "has expired" cobre inclusive "Email link is invalid or has expired", que é
+  // o texto real do Supabase. O que fica de fora é "invalid" sozinho: ele
+  // aparece em erro de refresh token e de assinatura, sem relação com o código.
+  { match: /has expired|otp.*expired/i, entry: BY_CODE.otp_expired! },
   {
     match: /token.*(not found|invalid)|invalid.*otp/i,
     entry: { message: 'Código inválido. Confira os 6 dígitos e tente de novo.', kind: 'user' },
@@ -79,4 +88,17 @@ export function translateAuthError(error: AuthErrorLike): string {
  */
 export function classifyAuthError(error: AuthErrorLike): AuthErrorKind {
   return resolve(error).kind;
+}
+
+/**
+ * Conta criada mas ainda não confirmada.
+ *
+ * O Supabase só responde assim quando a senha está correta — senha errada e
+ * e-mail inexistente devolvem `invalid_credentials`, indistinguíveis entre si.
+ * Verificado em execução. Por isso levar essa pessoa à tela de código não revela
+ * nada: ela já provou saber a credencial.
+ */
+export function isUnconfirmedEmailError(error: AuthErrorLike): boolean {
+  if (!error) return false;
+  return error.code === 'email_not_confirmed' || /email not confirmed/i.test(error.message);
 }
