@@ -1,6 +1,7 @@
 import { colors, typography } from '@rewam/tokens';
 import { Screen } from '@rewam/ui';
 import { formatDuration } from '@rewam/utils';
+import { Stack } from 'expo-router';
 import { StyleSheet, Text } from 'react-native';
 
 export default function HomeScreen() {
@@ -9,6 +10,8 @@ export default function HomeScreen() {
 
   return (
     <Screen>
+      <Stack.Screen options={{ title: 'Rewam' }} />
+
       <Text style={styles.title}>Rewam</Text>
       <Text style={styles.body}>Tempo assistido: {formatDuration(totalMinutes)}</Text>
       <Text style={styles.caption}>
