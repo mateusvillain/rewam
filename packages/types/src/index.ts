@@ -28,6 +28,33 @@ export const episodeSchema = z.object({
 });
 export type Episode = z.infer<typeof episodeSchema>;
 
+// ---------------------------------------------------------------------------
+// Catálogo TMDB, já normalizado
+// ---------------------------------------------------------------------------
+// Formas derivadas de `titleSchema` e `episodeSchema` para não repetir campo por
+// campo: o que vem do TMDB é o mesmo título, só que ainda sem identidade no
+// nosso banco. Derivar mantém os dois lados em sincronia quando um campo mudar.
+
+/** Busca do TMDB não devolve duração — por isso ela some aqui, em vez de virar `null`. */
+export const catalogSearchResultSchema = titleSchema.omit({ id: true, runtimeMinutes: true });
+export type CatalogSearchResult = z.infer<typeof catalogSearchResultSchema>;
+
+/** Título de catálogo pronto para upsert em `titles`, ainda sem `id`. */
+export const catalogTitleSchema = titleSchema.omit({ id: true });
+export type CatalogTitle = z.infer<typeof catalogTitleSchema>;
+
+/** Detalhe traz sinopse, que não é persistida em `titles` nem usada na busca. */
+export const catalogTitleDetailSchema = catalogTitleSchema.extend({
+  overview: z.string().nullable(),
+});
+export type CatalogTitleDetail = z.infer<typeof catalogTitleDetailSchema>;
+
+/** Episódio do TMDB: sem `id` nem `titleId`, que só existem depois de persistido. */
+export const catalogEpisodeSchema = episodeSchema
+  .omit({ id: true, titleId: true })
+  .extend({ tmdbId: z.number().int().positive() });
+export type CatalogEpisode = z.infer<typeof catalogEpisodeSchema>;
+
 export const watchEventSchema = z.object({
   id: z.uuid(),
   userId: z.uuid(),

@@ -184,6 +184,9 @@ importers:
       '@rewam/types':
         specifier: workspace:*
         version: link:../types
+      '@rewam/utils':
+        specifier: workspace:*
+        version: link:../utils
       zod:
         specifier: ^4.1.13
         version: 4.4.3
