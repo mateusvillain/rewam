@@ -64,7 +64,7 @@ pnpm --filter @rewam/database gen:types  # regenera packages/database/src/types.
 pnpm db:test                             # confere RLS e trigger de perfil
 ```
 
-O CI faz exatamente isso num job próprio e falha se os tipos versionados não corresponderem às migrações, de modo que schema e tipos não saiam de sincronia sem ninguém notar. `types.generated.ts` é arquivo gerado: fica fora do Prettier e do ESLint para bater byte a byte com o gerador — não edite à mão.
+O CI repete esses passos num job próprio — subindo só os serviços que as verificações usam — e falha se os tipos versionados não corresponderem às migrações, de modo que schema e tipos não saiam de sincronia sem ninguém notar. A versão da CLI do Supabase é fixada exatamente, porque a checagem compara a saída do gerador byte a byte. `types.generated.ts` é arquivo gerado: fica fora do Prettier e do ESLint para bater byte a byte com o gerador — não edite à mão.
 
 ## Variáveis de ambiente
 

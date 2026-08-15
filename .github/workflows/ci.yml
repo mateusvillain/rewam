@@ -12,18 +12,11 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Instalar dependências
-        run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup
 
       - name: Formatação
         run: pnpm format:check
@@ -42,25 +35,20 @@ jobs:
   # as migrações produzem. Sem isso, migração e tipos saem de sincronia em silêncio.
   database:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
+      - uses: ./.github/actions/setup
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Instalar dependências
-        run: pnpm install --frozen-lockfile
-
-      # Só o banco: os demais serviços não participam de nenhuma verificação aqui.
-      - name: Subir o banco local
-        run: npx supabase start -x realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector,supavisor,mailpit,inbucket
-
-      - name: Aplicar migrações do zero
-        run: npx supabase db reset
+      # O container é novo a cada execução e `start` já aplica migrações e seed,
+      # então isto é a própria prova de que o schema sobe do zero — sem `db reset`
+      # em seguida, que refaria o mesmo trabalho.
+      #
+      # A exclusão deixa de pé o que as verificações usam (banco, auth, PostgREST
+      # e postgres-meta) e corta o resto, que só faria a subida demorar.
+      - name: Subir o Supabase local
+        run: npx supabase start -x realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector,supavisor,mailpit
 
       - name: Verificar RLS
         run: pnpm db:test:rls
@@ -71,8 +59,12 @@ jobs:
       - name: Regenerar tipos do banco
         run: pnpm --filter @rewam/database gen:types
 
+      # `git diff` sozinho ignora arquivo ausente do índice: se o gerado tivesse
+      # sido apagado do repo, a regeneração o recriaria como untracked e o diff
+      # sairia limpo. O intent-to-add força a comparação a enxergar esse caso.
       - name: Falhar se os tipos versionados divergirem das migrações
         run: |
+          git add --intent-to-add packages/database/src/types.generated.ts
           if ! git diff --exit-code -- packages/database/src/types.generated.ts; then
             echo "::error::Os tipos versionados não correspondem às migrações. Rode 'pnpm --filter @rewam/database gen:types' e faça commit do resultado."
             exit 1
