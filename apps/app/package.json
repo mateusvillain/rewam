@@ -1,0 +1,45 @@
+{
+  "name": "@rewam/app",
+  "version": "0.1.0",
+  "private": true,
+  "main": "expo-router/entry",
+  "scripts": {
+    "dev": "expo start",
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "^5.2.2",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@rewam/auth": "workspace:*",
+    "@rewam/database": "workspace:*",
+    "@rewam/tmdb": "workspace:*",
+    "@rewam/tokens": "workspace:*",
+    "@rewam/types": "workspace:*",
+    "@rewam/ui": "workspace:*",
+    "@rewam/utils": "workspace:*",
+    "@supabase/supabase-js": "^2.86.0",
+    "@tanstack/react-query": "^5.90.5",
+    "expo": "~57.0.13",
+    "expo-constants": "~57.0.11",
+    "expo-linking": "~57.0.6",
+    "expo-router": "~57.0.13",
+    "expo-status-bar": "~57.0.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-hook-form": "^7.65.0",
+    "react-native": "0.86.2",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "~4.26.2",
+    "react-native-web": "^0.21.2",
+    "zod": "^4.1.13"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.2",
+    "typescript": "~6.0.3"
+  }
+}
