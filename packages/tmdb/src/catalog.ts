@@ -18,7 +18,16 @@ import { tmdbMovieDetailSchema, tmdbSearchResponseSchema, tmdbTvDetailSchema } f
 
 export type CatalogSearchPage = {
   page: number;
+  /** Já limitado ao que o TMDB deixa alcançar: pedir além de 500 devolve erro. */
   totalPages: number;
+  /**
+   * Total que o TMDB diz ter, **antes** do nosso filtro.
+   *
+   * `results` pode vir vazio com `totalResults` alto — uma página de
+   * `/search/multi` só com pessoas é o caso comum. Quem exibe deve decidir
+   * "acabou?" por `page >= totalPages`, e nunca por `results.length === 0`,
+   * senão para de paginar no meio e ainda mostra "nenhum resultado" mentindo.
+   */
   totalResults: number;
   results: CatalogSearchResult[];
 };
@@ -30,12 +39,30 @@ export type SearchCatalogOptions = {
   page?: number;
 };
 
-const EMPTY_PAGE: CatalogSearchPage = { page: 1, totalPages: 0, totalResults: 0, results: [] };
+/** O TMDB recusa página fora de 1..500, por mais resultados que diga ter. */
+const MAX_PAGE = 500;
 
-const SEARCH_PATHS = {
-  movie: '/search/movie',
-  tv: '/search/tv',
-} as const;
+function clampPage(page: number): number {
+  return Math.min(Math.max(Math.trunc(page), 1), MAX_PAGE);
+}
+
+/**
+ * Página vazia nova a cada chamada, e não uma constante compartilhada.
+ *
+ * A paginação infinita acumula resultados; um consumidor que faça
+ * `page.results.push(...)` numa constante contaminaria toda busca vazia
+ * seguinte.
+ */
+function emptyPage(): CatalogSearchPage {
+  return { page: 1, totalPages: 0, totalResults: 0, results: [] };
+}
+
+/** Sem tipo, busca filme e série juntos. Escrito por extenso: o caminho do TMDB
+ * coincidir com o valor de `MediaType` é coincidência, não contrato. */
+function searchPath(mediaType: MediaType | undefined): string {
+  if (!mediaType) return '/search/multi';
+  return mediaType === 'movie' ? '/search/movie' : '/search/tv';
+}
 
 export async function searchCatalog(
   client: TmdbClient,
@@ -46,14 +73,18 @@ export async function searchCatalog(
   // O TMDB responde 422 para busca vazia, e a tela de busca chama a cada tecla
   // digitada. Devolver a página vazia aqui evita transformar um campo limpo em
   // erro na cara de quem está digitando.
-  if (!term) return EMPTY_PAGE;
+  if (!term) return emptyPage();
 
-  const path = mediaType ? SEARCH_PATHS[mediaType] : '/search/multi';
-  const payload = tmdbSearchResponseSchema.parse(await client.request(path, { query: term, page }));
+  const path = searchPath(mediaType);
+  const payload = tmdbSearchResponseSchema.parse(
+    await client.request(path, { query: term, page: clampPage(page) }),
+  );
 
   return {
     page: payload.page,
-    totalPages: payload.total_pages,
+    // Sem o teto, uma busca genérica anuncia milhares de páginas e a rolagem
+    // infinita caminha até tomar 400 do TMDB na página 501.
+    totalPages: Math.min(payload.total_pages, MAX_PAGE),
     totalResults: payload.total_results,
     // `/search/multi` traz `media_type` em cada item; `/search/movie` e
     // `/search/tv` não trazem, e aí o tipo vem de quem perguntou.

@@ -168,9 +168,69 @@ describe('erros', () => {
     expect((erro as TmdbError).cause).toBeInstanceOf(TypeError);
   });
 
-  it('recusa resposta com formato inesperado, em vez de fingir que buscou', async () => {
+  it('recusa resposta com formato inesperado, e não como TmdbError', async () => {
     const { client } = clientRespondingWith({ resultados: [] });
 
-    await expect(searchCatalog(client, { query: 'origem' })).rejects.toThrow();
+    const erro = await searchCatalog(client, { query: 'origem' }).catch((e: unknown) => e);
+
+    expect(erro).toBeInstanceOf(Error);
+    // Decisão deliberada, travada aqui: contrato quebrado do TMDB não é falha de
+    // rede. Se virasse TmdbError, a tela ofereceria "tentar de novo" para algo
+    // que repetir não resolve.
+    expect(erro).not.toBeInstanceOf(TmdbError);
+  });
+
+  it('trata corpo ilegível como TmdbError, e não como SyntaxError cru', async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => {
+        throw new SyntaxError('Unexpected token < in JSON');
+      },
+    })) as unknown as typeof fetch;
+    const client = createTmdbClient({ readToken: 'token-de-teste', fetchImpl });
+
+    const erro = await searchCatalog(client, { query: 'origem' }).catch((e: unknown) => e);
+
+    expect(erro).toBeInstanceOf(TmdbError);
+    expect((erro as TmdbError).status).toBe(200);
+  });
+});
+
+describe('limite de página do TMDB', () => {
+  it('não pede além da página 500, que o TMDB recusa', async () => {
+    const { client, fetchImpl } = clientRespondingWith(searchBody);
+    await searchCatalog(client, { query: 'origem', page: 900 });
+
+    expect(requestedUrl(fetchImpl).searchParams.get('page')).toBe('500');
+  });
+
+  it('não pede página zero nem fracionária', async () => {
+    const zero = clientRespondingWith(searchBody);
+    await searchCatalog(zero.client, { query: 'origem', page: 0 });
+    expect(requestedUrl(zero.fetchImpl).searchParams.get('page')).toBe('1');
+
+    const fracionaria = clientRespondingWith(searchBody);
+    await searchCatalog(fracionaria.client, { query: 'origem', page: 2.7 });
+    expect(requestedUrl(fracionaria.fetchImpl).searchParams.get('page')).toBe('2');
+  });
+
+  it('anuncia só as páginas alcançáveis', async () => {
+    const { client } = clientRespondingWith({ ...searchBody, total_pages: 4200 });
+
+    await expect(searchCatalog(client, { query: 'a' })).resolves.toMatchObject({
+      totalPages: 500,
+    });
+  });
+});
+
+describe('contrato do cliente', () => {
+  it('autentica com o token de leitura e pede português', async () => {
+    const { client, fetchImpl } = clientRespondingWith(searchBody);
+    await searchCatalog(client, { query: 'origem' });
+
+    const [, init] = vi.mocked(fetchImpl).mock.calls[0]!;
+    expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer token-de-teste');
+    expect(requestedUrl(fetchImpl).searchParams.get('language')).toBe('pt-BR');
   });
 });
