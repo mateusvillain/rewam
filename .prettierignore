@@ -1,0 +1,7 @@
+node_modules
+dist
+.expo
+.turbo
+coverage
+pnpm-lock.yaml
+rewam-platform-plan.md
