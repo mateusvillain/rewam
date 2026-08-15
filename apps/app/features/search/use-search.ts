@@ -1,5 +1,5 @@
 import { searchCatalog } from '@rewam/tmdb';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 
 import { tmdb } from '@/lib/tmdb';
@@ -51,6 +51,9 @@ export function useSearch(term: string, filter: SearchFilterId) {
     queryFn: () =>
       searchCatalog(tmdb, { query: debouncedTerm, mediaType: filterToMediaType(filter) }),
     enabled: debouncedTerm.length > 0,
+    // Mantém os resultados anteriores enquanto a nova consulta não chega. Sem
+    // isto a lista esvazia a cada termo novo e a tela pisca entre buscas.
+    placeholderData: keepPreviousData,
   });
 
   return {

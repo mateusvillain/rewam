@@ -8,7 +8,7 @@ import type { MediaType } from '@rewam/types';
  */
 
 export const SEARCH_FILTERS = [
-  { id: 'todos', label: 'Todos' },
+  { id: 'all', label: 'Todos' },
   { id: 'movie', label: 'Filmes' },
   { id: 'tv', label: 'Séries' },
 ] as const;
@@ -17,10 +17,10 @@ export type SearchFilterId = (typeof SEARCH_FILTERS)[number]['id'];
 
 /** `undefined` é o que faz o cliente usar `/search/multi`, com os dois tipos. */
 export function filterToMediaType(filter: SearchFilterId): MediaType | undefined {
-  return filter === 'todos' ? undefined : filter;
+  return filter === 'all' ? undefined : filter;
 }
 
-export type SearchPlaceholder = 'digite' | 'nenhum' | null;
+export type SearchPlaceholder = 'empty-term' | 'no-results' | null;
 
 /**
  * Qual recado a lista mostra quando está vazia.
@@ -31,6 +31,6 @@ export type SearchPlaceholder = 'digite' | 'nenhum' | null;
  * rede, e é o próprio termo que separa os dois casos.
  */
 export function searchPlaceholder(term: string, resultCount: number): SearchPlaceholder {
-  if (term.trim().length === 0) return 'digite';
-  return resultCount === 0 ? 'nenhum' : null;
+  if (term.trim().length === 0) return 'empty-term';
+  return resultCount === 0 ? 'no-results' : null;
 }
