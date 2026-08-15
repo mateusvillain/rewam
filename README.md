@@ -68,6 +68,32 @@ pnpm db:test                             # confere RLS e trigger de perfil
 
 O CI repete esses passos num job próprio — subindo só os serviços que as verificações usam — e falha se os tipos versionados não corresponderem às migrações, de modo que schema e tipos não saiam de sincronia sem ninguém notar. A versão da CLI do Supabase é fixada exatamente, porque a checagem compara a saída do gerador byte a byte. `types.generated.ts` é arquivo gerado: fica fora do Prettier e do ESLint para bater byte a byte com o gerador — não edite à mão.
 
+## E-mails transacionais
+
+Confirmação de cadastro e redefinição de senha saem por código de 6 dígitos, não por link, e isso exige template customizado. O plano gratuito do Supabase recusa template customizado enquanto o provedor de e-mail for o padrão — por isso o projeto usa **SMTP próprio via [Resend](https://resend.com)**.
+
+A configuração fica em `[remotes.production.auth.email.smtp]`, no fim do `config.toml`, e não na seção `[auth]` do topo: declarada lá em cima ela valeria também para o stack local, que passaria a enviar e-mail de verdade. Como está, o desenvolvimento continua entregando tudo ao Mailpit, em `http://127.0.0.1:54324`.
+
+Para aplicar no projeto remoto, preencha `SUPABASE_AUTH_SMTP_PASSWORD` e `SUPABASE_AUTH_SMTP_ADMIN_EMAIL` no `.env` e rode:
+
+```bash
+npx supabase config push
+```
+
+### Limites e custos
+
+|                     | Plano gratuito do Resend                  |
+| ------------------- | ----------------------------------------- |
+| Envio               | 3.000 e-mails/mês, 100/dia                |
+| Domínios            | 1 (verificado por SPF/DKIM)               |
+| Marca no e-mail     | nenhuma                                   |
+| Cartão de crédito   | não exige                                 |
+| Primeiro plano pago | US$ 20/mês — 50.000 e-mails e 10 domínios |
+
+O volume real do projeto é de dezenas de e-mails por mês, muito abaixo do teto. Quem limita o gasto é o plano do Resend; os dois limites do Supabase, também no bloco `[remotes.production]`, existem contra abuso: `auth.rate_limit.email_sent` (30/hora, teto global) e `auth.email.max_frequency` (60s entre reenvios por usuário, espelhando o cooldown do app). No stack local nenhum dos dois vale, para não atrapalhar teste manual.
+
+A comparação que levou a essa escolha, com os outros provedores avaliados, está na [wiki](https://github.com/mateusvillain/rewam/wiki/Provedores-SMTP).
+
 ## Variáveis de ambiente
 
 Todas documentadas em `.env.example`, sem valores reais. Variáveis `EXPO_PUBLIC_*` são embarcadas no bundle e só podem conter dados públicos: URL do Supabase, chave anônima e token de leitura do TMDB. `SUPABASE_SERVICE_ROLE_KEY` e demais segredos ficam apenas no servidor.

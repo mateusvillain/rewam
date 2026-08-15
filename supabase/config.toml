@@ -196,6 +196,8 @@ password_requirements = ""
 
 [auth.rate_limit]
 # Number of emails that can be sent per hour. Requires auth.email.smtp to be enabled.
+# Inerte aqui, porque só vale com SMTP próprio — o valor real está no bloco
+# [remotes.production] no fim do arquivo, junto do resto da config de e-mail.
 email_sent = 2
 # Number of SMS messages that can be sent per hour. Requires auth.sms to be enabled.
 sms_sent = 30
@@ -228,21 +230,17 @@ enable_confirmations = true
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
 secure_password_change = false
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
+# 1s no local, para não atrapalhar teste manual contra o Mailpit — onde não há
+# cota a proteger. O valor de produção está em [remotes.production].
 max_frequency = "1s"
 # Number of characters used in the email OTP.
 otp_length = 6
 # Number of seconds before the email OTP expires (defaults to 1 hour).
 otp_expiry = 3600
 
-# Use a production-ready SMTP server
-# [auth.email.smtp]
-# enabled = true
-# host = "smtp.sendgrid.net"
-# port = 587
-# user = "apikey"
-# pass = "env(SENDGRID_API_KEY)"
-# admin_email = "admin@email.com"
-# sender_name = "Admin"
+# O SMTP próprio (Resend) fica no bloco [remotes] no fim deste arquivo, e não
+# aqui: declarado neste nível ele valeria também para o stack local, que
+# passaria a enviar e-mail de verdade em vez de entregar ao Mailpit.
 
 # Uncomment to customize email template
 # [auth.email.template.invite]
@@ -427,3 +425,43 @@ enabled = true
 # declarative_schema_path = "./database"
 # JSON string passed through to pg-delta SQL formatting.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
+
+# ---------------------------------------------------------------------------
+# Configuração exclusiva do projeto remoto (REW-51)
+#
+# Tudo abaixo vale só para o projeto identificado pelo `project_id`, e é
+# aplicado por `supabase config push`. O stack local ignora este bloco e
+# continua entregando os e-mails ao Mailpit, em http://127.0.0.1:54324.
+# ---------------------------------------------------------------------------
+[remotes.production]
+project_id = "vzhmvkooqmibyiwhwick"
+
+# Teto global por hora, contra abuso. Não é o limite de custo — quem limita o
+# gasto é o plano do Resend (100/dia); o volume real é de dezenas por mês.
+# Só passa a valer com SMTP próprio, por isso mora aqui.
+[remotes.production.auth.rate_limit]
+email_sent = 30
+
+# Espera mínima entre reenvios, por usuário. Espelha o RESEND_COOLDOWN_SECONDS
+# do app (ali "resend" é reenvio, não o provedor): sem isto o cooldown existiria
+# só no cliente, e uma chamada direta à API queimaria a cota.
+[remotes.production.auth.email]
+max_frequency = "60s"
+
+# SMTP próprio via Resend. Sem ele o plano gratuito do Supabase recusa template
+# customizado, e o e-mail sairia com link — enquanto o app pede código de 6
+# dígitos, quebrando cadastro e recuperação de senha para quem usa o produto.
+#
+# `user` é a string literal "resend"; a senha é a API key. A porta 587 usa
+# STARTTLS, que é o que o Auth espera.
+#
+# Remetente e senha vêm do ambiente — a API key é segredo, e o domínio do
+# remetente ainda vai ser comprado.
+[remotes.production.auth.email.smtp]
+enabled = true
+host = "smtp.resend.com"
+port = 587
+user = "resend"
+pass = "env(SUPABASE_AUTH_SMTP_PASSWORD)"
+admin_email = "env(SUPABASE_AUTH_SMTP_ADMIN_EMAIL)"
+sender_name = "Rewam"
