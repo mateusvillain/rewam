@@ -14,11 +14,12 @@ export default function HomeScreen() {
 
       <Text style={styles.title}>Rewam</Text>
       <Text style={styles.body}>Tempo assistido: {formatDuration(totalMinutes)}</Text>
-      <Text style={styles.caption}>
-        Busca no TMDB, histórico e estatísticas chegam nos próximos incrementos.
-      </Text>
+      <Text style={styles.caption}>Histórico e estatísticas chegam nos próximos incrementos.</Text>
 
       <FormLinks>
+        <Link href="/busca" style={formLinkStyle}>
+          Buscar filmes e séries
+        </Link>
         <Link href="/perfil" style={formLinkStyle}>
           Seu perfil
         </Link>
