@@ -1,4 +1,4 @@
-import { titleSchema, type CatalogTitle, type Title } from '@rewam/types';
+import { catalogTitleSchema, titleSchema, type CatalogTitle, type Title } from '@rewam/types';
 
 import type { RewamSupabaseClient } from './client';
 
@@ -23,8 +23,14 @@ const TITLE_COLUMNS =
  */
 export async function upsertTitle(
   client: RewamSupabaseClient,
-  title: CatalogTitle,
+  input: CatalogTitle,
 ): Promise<Title> {
+  // Validar na entrada, e não só na saída: a tabela recusa duração <= 0 com
+  // `titles_runtime_minutes_check`, e esse nome chegaria cru na tela se a
+  // normalização deixasse passar um zero. Falhar aqui dá uma mensagem legível
+  // e evita a ida ao banco.
+  const title = catalogTitleSchema.parse(input);
+
   // A unicidade de (tmdb_id, media_type) é o que torna isto idempotente:
   // selecionar o mesmo título de novo atualiza a linha e devolve o mesmo id,
   // em vez de criar outra.

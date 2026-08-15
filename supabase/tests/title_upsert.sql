@@ -60,6 +60,20 @@ select pg_temp.expect_count('campos foram atualizados',
       and title = 'A Origem (title novo)' and runtime_minutes = 150 and poster_path = '/outro.jpg'$$, 1);
 
 -- ---------------------------------------------------------------------------
+-- A promessa é da constraint, não do `on conflict`
+-- ---------------------------------------------------------------------------
+--
+-- As asserções acima escrevem `on conflict` à mão, replicando o que o PostgREST
+-- monta — então passariam verdes mesmo se o cliente esquecesse o `onConflict`.
+-- Esta aqui olha para o que só o banco garante: sem `on conflict`, o par
+-- repetido é recusado. Se um dia esta falhar, a unicidade caiu e nenhum upsert
+-- é idempotente, por mais correto que o cliente esteja.
+
+select pg_temp.expect_failure('inserir o par repetido sem on conflict',
+  $$insert into public.titles (tmdb_id, media_type, title)
+    values (27205, 'movie', 'Duplicata')$$);
+
+-- ---------------------------------------------------------------------------
 -- Mesmo tmdb_id em mídia diferente é outro título
 -- ---------------------------------------------------------------------------
 --
