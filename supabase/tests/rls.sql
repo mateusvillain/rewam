@@ -46,13 +46,11 @@ end;
 $$;
 
 -- Massa de teste criada como superusuário, antes de assumir qualquer identidade.
-insert into auth.users (id, instance_id, aud, role, email)
-values ('11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'a@example.com'),
-       ('22222222-2222-2222-2222-222222222222', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'b@example.com');
-
-insert into public.profiles (id, name)
-values ('11111111-1111-1111-1111-111111111111', 'Pessoa A'),
-       ('22222222-2222-2222-2222-222222222222', 'Pessoa B');
+-- Os perfis não são inseridos aqui: o trigger de cadastro os cria a partir do
+-- metadado, e é justamente o comportamento real que queremos exercitar.
+insert into auth.users (id, instance_id, aud, role, email, raw_user_meta_data)
+values ('11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'a@example.com', '{"name": "Pessoa A"}'::jsonb),
+       ('22222222-2222-2222-2222-222222222222', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'b@example.com', '{"name": "Pessoa B"}'::jsonb);
 
 insert into public.titles (id, tmdb_id, media_type, title, runtime_minutes)
 values ('aaaaaaaa-0000-0000-0000-000000000001', 27205, 'movie', 'A Origem', 148);

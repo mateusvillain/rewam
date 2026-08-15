@@ -22,7 +22,9 @@
     "db:reset": "supabase db reset",
     "db:diff": "supabase db diff",
     "db:push": "supabase db push",
-    "db:test:rls": "docker exec -i $(docker ps -qf name=supabase_db_ | head -1) psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/rls.sql"
+    "db:test:rls": "docker exec -i $(docker ps -qf name=supabase_db_ | head -1) psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/rls.sql",
+    "db:test:profile": "docker exec -i $(docker ps -qf name=supabase_db_ | head -1) psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/profile_trigger.sql",
+    "db:test": "pnpm db:test:rls && pnpm db:test:profile"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
