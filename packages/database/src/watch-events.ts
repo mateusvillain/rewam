@@ -3,6 +3,7 @@ import {
   updateWatchEventInputSchema,
   watchEventSchema,
   watchEventWithContextSchema,
+  timestampSchema,
   type CreateWatchEventInput,
   type UpdateWatchEventInput,
   type WatchEvent,
@@ -11,7 +12,7 @@ import {
 
 import type { RewamSupabaseClient } from './client';
 import { DatabaseError, throwIfError } from './errors';
-import { toEpisode, toTitle } from './rows';
+import { requireRow, toEpisode, toTitle, type RawRow } from './rows';
 
 export type { WatchEvent, WatchEventWithContext };
 
@@ -27,12 +28,13 @@ export type { WatchEvent, WatchEventWithContext };
  * mandar o valor errado — e a ilusão de que ele é quem autoriza.
  */
 
-const COLUNAS = 'id, user_id, title_id, episode_id, watched_at, duration_minutes, notes';
+const WATCH_EVENT_COLUMNS =
+  'id, user_id, title_id, episode_id, watched_at, duration_minutes, notes';
 
-const COLUNAS_TITULO =
+const TITLE_COLUMNS =
   'id, tmdb_id, media_type, title, original_title, poster_path, release_date, runtime_minutes';
 
-const COLUNAS_EPISODIO =
+const EPISODE_COLUMNS =
   'id, title_id, season_number, episode_number, name, runtime_minutes, air_date';
 
 /**
@@ -41,13 +43,13 @@ const COLUNAS_EPISODIO =
  * o episódio pertence ao título. Sem escolher um, o PostgREST recusa a consulta
  * inteira com `PGRST201`, em tempo de execução e não de compilação.
  */
-const COLUNAS_COM_CONTEXTO = `${COLUNAS}, titles(${COLUNAS_TITULO}), episodes!watch_events_episode_id_fkey(${COLUNAS_EPISODIO})`;
+const WATCH_EVENT_WITH_CONTEXT_COLUMNS = `${WATCH_EVENT_COLUMNS}, titles(${TITLE_COLUMNS}), episodes!watch_events_episode_id_fkey(${EPISODE_COLUMNS})`;
 
 /** Página padrão do histórico. Cabe numa tela sem pedir mais do que se lê. */
-export const LIMITE_PADRAO = 20;
+export const DEFAULT_LIMIT = 20;
 
 /** Teto de segurança: um `limit` absurdo puxaria o histórico inteiro de uma vez. */
-export const LIMITE_MAXIMO = 100;
+export const MAX_LIMIT = 100;
 
 export type ListWatchEventsOptions = {
   limit?: number;
@@ -64,14 +66,7 @@ export type WatchEventPage = {
   nextOffset: number | null;
 };
 
-/**
- * O tipo gerado descreve as colunas do `select`, não o que voltou na resposta.
- * Validar com Zod logo em seguida é o que de fato garante a forma, então a
- * linha entra aqui como dado cru em vez de fingir um tipo que ninguém checou.
- */
-type LinhaCrua = Record<string, unknown>;
-
-function toWatchEvent(row: LinhaCrua): WatchEvent {
+function toWatchEvent(row: RawRow): WatchEvent {
   return watchEventSchema.parse({
     id: row.id,
     userId: row.user_id,
@@ -83,7 +78,7 @@ function toWatchEvent(row: LinhaCrua): WatchEvent {
   });
 }
 
-function toWatchEventWithContext(row: LinhaCrua): WatchEventWithContext {
+function toWatchEventWithContext(row: RawRow): WatchEventWithContext {
   const title = row.titles;
   if (typeof title !== 'object' || title === null) {
     // O `title_id` é NOT NULL, então isto não é dado faltando: é o `select` sem
@@ -96,15 +91,28 @@ function toWatchEventWithContext(row: LinhaCrua): WatchEventWithContext {
 
   return watchEventWithContextSchema.parse({
     ...toWatchEvent(row),
-    title: toTitle(title as LinhaCrua),
-    episode:
-      typeof episode === 'object' && episode !== null ? toEpisode(episode as LinhaCrua) : null,
+    title: toTitle(title as RawRow),
+    episode: typeof episode === 'object' && episode !== null ? toEpisode(episode as RawRow) : null,
   });
 }
 
 function clampLimit(limit: number | undefined): number {
-  if (limit === undefined) return LIMITE_PADRAO;
-  return Math.min(Math.max(Math.trunc(limit), 1), LIMITE_MAXIMO);
+  if (limit === undefined) return DEFAULT_LIMIT;
+  return Math.min(Math.max(Math.trunc(limit), 1), MAX_LIMIT);
+}
+
+/**
+ * Instante de filtro, validado antes de virar consulta.
+ *
+ * Uma string qualquer aqui não daria erro de tipo e chegaria ao PostgREST como
+ * filtro malformado, cujo erro fala de sintaxe SQL e não do parâmetro errado.
+ */
+function parseBoundary(value: string, field: 'from' | 'to'): string {
+  const parsed = timestampSchema.safeParse(value);
+  if (!parsed.success) {
+    throw new DatabaseError('dados-invalidos', `O período informado em "${field}" não é uma data.`);
+  }
+  return parsed.data;
 }
 
 /**
@@ -133,12 +141,12 @@ export async function createWatchEvent(
       duration_minutes: event.durationMinutes,
       notes: event.notes,
     })
-    .select(COLUNAS)
+    .select(WATCH_EVENT_COLUMNS)
     .single();
 
   throwIfError(error);
 
-  return toWatchEvent(data as LinhaCrua);
+  return toWatchEvent(requireRow(data));
 }
 
 /**
@@ -161,19 +169,19 @@ export async function listWatchEvents(
 
   let query = client
     .from('watch_events')
-    .select(COLUNAS_COM_CONTEXTO)
+    .select(WATCH_EVENT_WITH_CONTEXT_COLUMNS)
     .order('watched_at', { ascending: false })
     .order('id', { ascending: false })
     .range(offset, offset + limit);
 
-  if (options.from) query = query.gte('watched_at', options.from);
-  if (options.to) query = query.lte('watched_at', options.to);
+  if (options.from) query = query.gte('watched_at', parseBoundary(options.from, 'from'));
+  if (options.to) query = query.lte('watched_at', parseBoundary(options.to, 'to'));
 
   const { data, error } = await query;
 
   throwIfError(error);
 
-  const rows = (data ?? []) as LinhaCrua[];
+  const rows = (data ?? []) as RawRow[];
   const hasMore = rows.length > limit;
 
   return {
@@ -196,14 +204,14 @@ export async function listWatchEventsByTitle(
 ): Promise<WatchEvent[]> {
   const { data, error } = await client
     .from('watch_events')
-    .select(COLUNAS)
+    .select(WATCH_EVENT_COLUMNS)
     .eq('title_id', titleId)
     .order('watched_at', { ascending: true })
     .order('id', { ascending: true });
 
   throwIfError(error);
 
-  return ((data ?? []) as LinhaCrua[]).map(toWatchEvent);
+  return ((data ?? []) as RawRow[]).map(toWatchEvent);
 }
 
 /**
@@ -239,12 +247,12 @@ export async function updateWatchEvent(
     .from('watch_events')
     .update(payload)
     .eq('id', id)
-    .select(COLUNAS)
+    .select(WATCH_EVENT_COLUMNS)
     .single();
 
   throwIfError(error);
 
-  return toWatchEvent(data as LinhaCrua);
+  return toWatchEvent(requireRow(data));
 }
 
 /**

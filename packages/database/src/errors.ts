@@ -22,6 +22,15 @@ export type DatabaseErrorCode =
   | 'dados-invalidos'
   /** Nenhuma linha atingida — normalmente algo apagado em outro dispositivo. */
   | 'nao-encontrado'
+  /**
+   * O pedido em si está malformado: aninhamento ambíguo, coluna que não existe.
+   *
+   * Categoria à parte de propósito. É defeito de programação, não falha
+   * passageira, e cair em `indisponivel` faria a tela oferecer "tentar de novo"
+   * para algo que vai falhar igual todas as vezes. É exatamente a classe de erro
+   * que o nome da chave estrangeira em `watch-events.ts` existe para evitar.
+   */
+  | 'consulta-invalida'
   /** Falha de rede ou do servidor. É a única categoria que vale repetir. */
   | 'indisponivel';
 
@@ -42,7 +51,7 @@ export class DatabaseError extends Error {
  * classificar é do servidor até prova em contrário, e essa é a leitura que não
  * culpa a pessoa por um dado que ela informou corretamente.
  */
-const CODIGOS: Record<string, DatabaseErrorCode> = {
+const ERROR_CODES: Record<string, DatabaseErrorCode> = {
   // Chave estrangeira violada.
   '23503': 'referencia-inexistente',
   // not_null_violation, check_violation, invalid_text_representation.
@@ -57,16 +66,35 @@ const CODIGOS: Record<string, DatabaseErrorCode> = {
   PGRST301: 'nao-autenticado',
   // `single()` sem exatamente uma linha.
   PGRST116: 'nao-encontrado',
+  // Sintaxe do `select` inválida.
+  PGRST100: 'consulta-invalida',
+  // Relação inexistente e aninhamento ambíguo, respectivamente.
+  PGRST200: 'consulta-invalida',
+  PGRST201: 'consulta-invalida',
 };
 
-const MENSAGENS: Record<DatabaseErrorCode, string> = {
+const ERROR_MESSAGES: Record<DatabaseErrorCode, string> = {
   'nao-autenticado': 'Sua sessão expirou. Entre de novo para continuar.',
   'sem-permissao': 'Você não tem permissão para esta operação.',
   'referencia-inexistente': 'O título deste registro não está mais no banco.',
   'dados-invalidos': 'Algum dado informado não é aceito. Revise e tente de novo.',
   'nao-encontrado': 'Este registro não existe mais.',
+  'consulta-invalida': 'O app fez um pedido que o servidor não entendeu.',
   indisponivel: 'Não foi possível falar com o servidor. Tente de novo.',
 };
+
+/** As únicas categorias em que repetir a mesma chamada pode dar outro resultado. */
+const RETRIABLE: ReadonlySet<DatabaseErrorCode> = new Set(['indisponivel']);
+
+/**
+ * Se vale oferecer "tentar de novo" para este erro.
+ *
+ * Mora aqui, e não na tela, porque é a tabela acima que sabe a resposta —
+ * repetido em cada tela, um código novo nasceria retryable por esquecimento.
+ */
+export function canRetry(error: DatabaseError): boolean {
+  return RETRIABLE.has(error.code);
+}
 
 /** Extrai o `code` do erro do Supabase sem assumir o formato inteiro. */
 function readCode(error: unknown): string | null {
@@ -80,8 +108,8 @@ export function translateDatabaseError(error: unknown): DatabaseError {
   // cada camada por onde o erro passa.
   if (error instanceof DatabaseError) return error;
 
-  const code = CODIGOS[readCode(error) ?? ''] ?? 'indisponivel';
-  return new DatabaseError(code, MENSAGENS[code], { cause: error });
+  const code = ERROR_CODES[readCode(error) ?? ''] ?? 'indisponivel';
+  return new DatabaseError(code, ERROR_MESSAGES[code], { cause: error });
 }
 
 /** Açúcar para o padrão `if (error) throw ...` que se repete em cada consulta. */

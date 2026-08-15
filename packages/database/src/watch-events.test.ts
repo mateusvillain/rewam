@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { RewamSupabaseClient } from './client';
 import { DatabaseError } from './errors';
 import {
-  LIMITE_MAXIMO,
+  MAX_LIMIT,
   createWatchEvent,
   deleteWatchEvent,
   listWatchEvents,
@@ -236,7 +236,7 @@ describe('listWatchEvents', () => {
     const { client, calls } = fakeClient({ data: [] });
     await listWatchEvents(client, { limit: 5000 });
 
-    expect(calls.range.mock.calls[0]).toEqual([0, LIMITE_MAXIMO]);
+    expect(calls.range.mock.calls[0]).toEqual([0, MAX_LIMIT]);
   });
 
   it('aplica o filtro de período nas duas pontas', async () => {
@@ -245,6 +245,16 @@ describe('listWatchEvents', () => {
 
     expect(calls.gte.mock.calls[0]).toEqual(['watched_at', '2026-01-01T00:00:00Z']);
     expect(calls.lte.mock.calls[0]).toEqual(['watched_at', '2026-12-31T23:59:59Z']);
+  });
+
+  it('recusa um período que não é data, em vez de mandar filtro torto ao banco', async () => {
+    const { client, calls } = fakeClient({ data: [] });
+
+    // Chegando ao PostgREST, o erro falaria de sintaxe SQL — nunca do parâmetro
+    // que veio errado.
+    const erro = await listWatchEvents(client, { from: 'ontem' }).catch((e: unknown) => e);
+    expect((erro as DatabaseError).code).toBe('dados-invalidos');
+    expect(calls.gte).not.toHaveBeenCalled();
   });
 
   it('não filtra por período quando ele não é informado', async () => {

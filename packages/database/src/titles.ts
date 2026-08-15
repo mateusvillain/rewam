@@ -1,7 +1,8 @@
 import { catalogTitleSchema, type CatalogTitle, type Title } from '@rewam/types';
 
 import type { RewamSupabaseClient } from './client';
-import { toTitle } from './rows';
+import { throwIfError } from './errors';
+import { requireRow, toTitle } from './rows';
 
 export type { Title };
 
@@ -49,7 +50,7 @@ export async function upsertTitle(
     p_runtime_minutes: title.runtimeMinutes ?? undefined,
   });
 
-  if (error) throw error;
+  throwIfError(error);
 
-  return toTitle(data);
+  return toTitle(requireRow(data));
 }
