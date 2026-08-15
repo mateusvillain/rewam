@@ -1,0 +1,2 @@
+-- Dados locais opcionais para desenvolvimento.
+-- Nunca versionar dados reais de usuários aqui.
