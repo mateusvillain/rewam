@@ -259,6 +259,36 @@ export type Database = {
     }
     Functions: {
       delete_own_account: { Args: never; Returns: undefined }
+      upsert_title: {
+        Args: {
+          p_media_type: Database["public"]["Enums"]["media_type"]
+          p_original_title?: string
+          p_poster_path?: string
+          p_release_date?: string
+          p_runtime_minutes?: number
+          p_title: string
+          p_tmdb_id: number
+        }
+        Returns: {
+          created_at: string
+          id: string
+          media_type: Database["public"]["Enums"]["media_type"]
+          metadata: Json
+          original_title: string | null
+          poster_path: string | null
+          release_date: string | null
+          runtime_minutes: number | null
+          title: string
+          tmdb_id: number
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "titles"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
     }
     Enums: {
       media_type: "movie" | "tv"

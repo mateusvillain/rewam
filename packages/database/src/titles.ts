@@ -4,9 +4,6 @@ import type { RewamSupabaseClient } from './client';
 
 export type { Title };
 
-const TITLE_COLUMNS =
-  'id, tmdb_id, media_type, title, original_title, poster_path, release_date, runtime_minutes';
-
 /**
  * Grava ou atualiza a cópia mínima do título selecionado.
  *
@@ -14,12 +11,15 @@ const TITLE_COLUMNS =
  * referencia `titles.id`, então o título precisa existir aqui antes de qualquer
  * exibição ser registrada.
  *
- * Recebe `CatalogTitle`, e não `CatalogSearchResult`, de propósito. Resultado de
- * busca não traz duração, e persistir a partir dele gravaria `runtime_minutes`
- * nulo — indistinguível de "o TMDB não sabe a duração" — e depois apagaria a
- * duração certa no próximo upsert. Quem seleciona um título busca o detalhe
- * antes; o tipo é o que garante isso, porque `CatalogSearchResult` não é
- * atribuível a `CatalogTitle`.
+ * Passa pela função `upsert_title` e não pela tabela: desde a E3.7, o papel
+ * `authenticated` só tem leitura em catálogo. O `update` direto deixaria
+ * qualquer conta reescrever a duração de um título, que alimenta as
+ * estatísticas de todas as outras.
+ *
+ * Recebe `CatalogTitle`, e não `CatalogSearchResult`, de propósito: resultado de
+ * busca não traz duração, e o tipo é o que impede a chamada errada. A função no
+ * banco tem a segunda linha de defesa, preservando a duração já gravada quando
+ * a chamada não informa nenhuma.
  */
 export async function upsertTitle(
   client: RewamSupabaseClient,
@@ -31,25 +31,18 @@ export async function upsertTitle(
   // e evita a ida ao banco.
   const title = catalogTitleSchema.parse(input);
 
-  // A unicidade de (tmdb_id, media_type) é o que torna isto idempotente:
-  // selecionar o mesmo título de novo atualiza a linha e devolve o mesmo id,
-  // em vez de criar outra.
-  const { data, error } = await client
-    .from('titles')
-    .upsert(
-      {
-        tmdb_id: title.tmdbId,
-        media_type: title.mediaType,
-        title: title.title,
-        original_title: title.originalTitle,
-        poster_path: title.posterPath,
-        release_date: title.releaseDate,
-        runtime_minutes: title.runtimeMinutes,
-      },
-      { onConflict: 'tmdb_id,media_type' },
-    )
-    .select(TITLE_COLUMNS)
-    .single();
+  const { data, error } = await client.rpc('upsert_title', {
+    p_tmdb_id: title.tmdbId,
+    p_media_type: title.mediaType,
+    p_title: title.title,
+    // `undefined` em vez de `null`: omitir o argumento cai no default da função,
+    // e é assim que a duração ausente significa "não sei", em vez de "apague a
+    // que está lá".
+    p_original_title: title.originalTitle ?? undefined,
+    p_poster_path: title.posterPath ?? undefined,
+    p_release_date: title.releaseDate ?? undefined,
+    p_runtime_minutes: title.runtimeMinutes ?? undefined,
+  });
 
   if (error) throw error;
 
