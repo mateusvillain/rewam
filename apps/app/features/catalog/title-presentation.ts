@@ -35,18 +35,3 @@ export function formatRuntime(runtimeMinutes: number | null): string {
 export function titleSubtitle(year: string | null, mediaType: 'movie' | 'tv'): string {
   return [year, mediaType === 'movie' ? 'Filme' : 'Série'].filter(Boolean).join(' · ');
 }
-
-/**
- * O id do TMDB vindo da rota.
- *
- * Parâmetro de rota é sempre texto e pode ser qualquer coisa que a pessoa
- * digite na barra de endereço. Devolver `null` deixa a tela mostrar erro em vez
- * de pedir `/movie/NaN` ao TMDB.
- */
-export function parseTmdbId(param: string | string[] | undefined): number | null {
-  const raw = Array.isArray(param) ? param[0] : param;
-  if (raw === undefined || !/^\d+$/.test(raw)) return null;
-
-  const id = Number(raw);
-  return Number.isSafeInteger(id) && id > 0 ? id : null;
-}

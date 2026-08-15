@@ -1,125 +1,161 @@
 import { TMDB_ATTRIBUTION } from '@rewam/tmdb';
 import { colors, spacing, typography } from '@rewam/tokens';
-import { Button, Poster, Screen } from '@rewam/ui';
+import {
+  Button,
+  FormDescription,
+  FormMessage,
+  FormTitle,
+  LoadingScreen,
+  Poster,
+  Screen,
+} from '@rewam/ui';
 import { Stack, useLocalSearchParams } from 'expo-router';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import {
+  describeCatalogError,
   formatRuntime,
   parseTmdbId,
   releaseYear,
   titleSubtitle,
-  useTitleDetail,
   usePersistOpenedTitle,
+  useTitleDetail,
 } from '@/features/catalog';
 
 /**
  * Detalhe de filme.
  *
  * É onde a pessoa confirma que escolheu o título certo antes de registrar. A
- * ação de marcar como assistido entra na E4; aqui fica a apresentação e o que
- * ela precisa para funcionar — o título já gravado no banco.
+ * ação de marcar como assistido chega na E4; aqui fica a apresentação e o lugar
+ * reservado para ela, além do título já gravado no banco — que é o que essa
+ * ação vai precisar para funcionar.
  */
 export default function MovieDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const tmdbId = parseTmdbId(id);
 
-  const { data: filme, isPending, isError, refetch, isFetching } = useTitleDetail('movie', tmdbId);
-  const { falhouAoSalvar } = usePersistOpenedTitle(filme);
+  const {
+    data: movie,
+    isPending,
+    isError,
+    error,
+    refetch,
+    isFetching,
+  } = useTitleDetail('movie', tmdbId);
+  const { saveFailed, isSaving, retrySave } = usePersistOpenedTitle(movie);
 
   if (tmdbId === null) {
     return (
-      <Aviso
-        titulo="Filme não encontrado"
-        detalhe="O endereço aberto não aponta para um filme válido."
+      <Notice
+        title="Endereço inválido"
+        detail="Este endereço não aponta para um filme. Volte à busca e escolha um título."
       />
     );
   }
 
   if (isPending) {
     return (
-      <Screen>
+      <>
         <Stack.Screen options={{ title: 'Filme' }} />
-        <View style={styles.centro}>
-          <ActivityIndicator color={colors.textMuted} />
-        </View>
-      </Screen>
+        <LoadingScreen label="Carregando o filme" />
+      </>
     );
   }
 
   if (isError) {
+    const { title, detail, canRetry } = describeCatalogError(error);
+
     return (
-      <Aviso
-        titulo="Não foi possível carregar o filme"
-        detalhe="Verifique sua conexão e tente de novo."
-        aoRepetir={() => void refetch()}
-        repetindo={isFetching}
+      <Notice
+        title={title}
+        detail={detail}
+        // Sem `canRetry`, um filme removido do TMDB ganharia um botão que
+        // repete para sempre o mesmo 404.
+        onRetry={canRetry ? () => void refetch() : undefined}
+        isRetrying={isFetching}
       />
     );
   }
 
-  const ano = releaseYear(filme.releaseDate);
+  const year = releaseYear(movie.releaseDate);
   // O título original só informa quando difere do traduzido; repetido, é ruído.
-  const mostrarTituloOriginal = filme.originalTitle !== null && filme.originalTitle !== filme.title;
+  const showOriginalTitle = movie.originalTitle !== null && movie.originalTitle !== movie.title;
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: filme.title }} />
+      <Stack.Screen options={{ title: movie.title }} />
 
-      <ScrollView contentContainerStyle={styles.conteudo}>
-        <View style={styles.cabecalho}>
-          <Poster posterPath={filme.posterPath} title={filme.title} size="lg" />
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+        <View style={styles.header}>
+          <Poster posterPath={movie.posterPath} title={movie.title} size="lg" />
 
-          <View style={styles.metadados}>
-            <Text style={styles.titulo}>{filme.title}</Text>
-            {mostrarTituloOriginal ? (
-              <Text style={styles.tituloOriginal}>{filme.originalTitle}</Text>
+          <View style={styles.metadata}>
+            <FormTitle>{movie.title}</FormTitle>
+            {showOriginalTitle ? (
+              <Text style={styles.originalTitle}>{movie.originalTitle}</Text>
             ) : null}
-            <Text style={styles.apoio}>{titleSubtitle(ano, filme.mediaType)}</Text>
-            <Text style={styles.apoio}>{formatRuntime(filme.runtimeMinutes)}</Text>
+            <FormDescription>{titleSubtitle(year, movie.mediaType)}</FormDescription>
+            <FormDescription>{formatRuntime(movie.runtimeMinutes)}</FormDescription>
           </View>
         </View>
 
-        {falhouAoSalvar ? (
-          <Text style={styles.avisoSalvar} role="alert">
-            Não foi possível guardar este filme para registro. Reabra a tela antes de marcar como
-            assistido.
-          </Text>
+        {/* Lugar da ação da E4. O botão fica desabilitado em vez de ausente
+            para que o layout já nasça com ela, e para dizer o que vem a
+            seguir — mesmo caminho da tela de início. */}
+        <View style={styles.action}>
+          <Button label="Marcar como assistido" disabled />
+          <FormDescription>O registro de exibições chega no próximo incremento.</FormDescription>
+        </View>
+
+        {saveFailed ? (
+          <View style={styles.saveWarning}>
+            <FormMessage>
+              Não foi possível guardar este filme para registro. Sem isso, marcar como assistido vai
+              falhar.
+            </FormMessage>
+            <Button
+              label={isSaving ? 'Tentando…' : 'Tentar guardar de novo'}
+              variant="ghost"
+              onPress={retrySave}
+              disabled={isSaving}
+            />
+          </View>
         ) : null}
 
-        {filme.overview ? (
-          <Text style={styles.sinopse}>{filme.overview}</Text>
+        {movie.overview ? (
+          <Text style={styles.overview}>{movie.overview}</Text>
         ) : (
-          <Text style={styles.apoio}>Sem sinopse em português no TMDB.</Text>
+          <FormDescription>Sem sinopse em português no TMDB.</FormDescription>
         )}
 
-        <Text style={styles.atribuicao}>{TMDB_ATTRIBUTION}</Text>
+        <Text style={styles.attribution}>{TMDB_ATTRIBUTION}</Text>
       </ScrollView>
     </Screen>
   );
 }
 
-function Aviso({
-  titulo,
-  detalhe,
-  aoRepetir,
-  repetindo,
+/** Tela de recado: id inválido e falhas de carregamento caem aqui. */
+function Notice({
+  title,
+  detail,
+  onRetry,
+  isRetrying,
 }: {
-  titulo: string;
-  detalhe: string;
-  aoRepetir?: () => void;
-  repetindo?: boolean;
+  title: string;
+  detail: string;
+  onRetry?: () => void;
+  isRetrying?: boolean;
 }) {
   return (
     <Screen>
       <Stack.Screen options={{ title: 'Filme' }} />
-      <Text style={styles.titulo}>{titulo}</Text>
-      <Text style={styles.apoio}>{detalhe}</Text>
-      {aoRepetir ? (
+      <FormTitle>{title}</FormTitle>
+      <FormDescription>{detail}</FormDescription>
+      {onRetry ? (
         <Button
-          label={repetindo ? 'Tentando…' : 'Tentar de novo'}
-          onPress={aoRepetir}
-          disabled={repetindo}
+          label={isRetrying ? 'Tentando…' : 'Tentar de novo'}
+          onPress={onRetry}
+          disabled={isRetrying}
         />
       ) : null}
     </Screen>
@@ -127,47 +163,42 @@ function Aviso({
 }
 
 const styles = StyleSheet.create({
-  conteudo: {
-    gap: spacing.md,
-    paddingBottom: spacing.xl,
-  },
-  centro: {
-    alignItems: 'center',
+  // `flex: 1` no próprio ScrollView: sem isso ele se dimensiona pelo conteúdo
+  // dentro de um pai `flex: 1` e corta em vez de rolar no iOS e no Android.
+  scroll: {
     flex: 1,
-    justifyContent: 'center',
   },
-  cabecalho: {
+  content: {
+    gap: spacing.md,
+    // O `Screen` já dá o respiro lateral; aqui só o de baixo, para o último
+    // texto não encostar na borda ao fim da rolagem.
+    paddingBottom: spacing.lg,
+  },
+  header: {
     flexDirection: 'row',
     gap: spacing.md,
   },
-  metadados: {
+  metadata: {
     flex: 1,
     gap: spacing.xs,
   },
-  titulo: {
-    color: colors.text,
-    fontSize: typography.title.fontSize,
-    fontWeight: '600',
-  },
-  tituloOriginal: {
+  originalTitle: {
     color: colors.textMuted,
     fontSize: typography.body.fontSize,
     fontStyle: 'italic',
   },
-  apoio: {
-    color: colors.textMuted,
-    fontSize: typography.body.fontSize,
+  action: {
+    gap: spacing.xs,
   },
-  sinopse: {
+  saveWarning: {
+    gap: spacing.sm,
+  },
+  overview: {
     color: colors.text,
     fontSize: typography.body.fontSize,
     lineHeight: typography.body.lineHeight,
   },
-  avisoSalvar: {
-    color: colors.danger,
-    fontSize: typography.caption.fontSize,
-  },
-  atribuicao: {
+  attribution: {
     color: colors.textMuted,
     fontSize: typography.caption.fontSize,
   },

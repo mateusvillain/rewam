@@ -1,13 +1,13 @@
 import { getTitleDetail } from '@rewam/tmdb';
 import type { CatalogTitleDetail, MediaType } from '@rewam/types';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 import { tmdb } from '@/lib/tmdb';
 
 import { useUpsertTitle } from './use-title';
 
-export function titleDetailQueryKey(mediaType: MediaType, tmdbId: number | null) {
+export function titleDetailQueryKey(mediaType: MediaType, tmdbId: number) {
   return ['title-detail', mediaType, tmdbId] as const;
 }
 
@@ -19,8 +19,13 @@ export function titleDetailQueryKey(mediaType: MediaType, tmdbId: number | null)
  */
 export function useTitleDetail(mediaType: MediaType, tmdbId: number | null) {
   return useQuery({
-    queryKey: titleDetailQueryKey(mediaType, tmdbId),
-    queryFn: () => getTitleDetail(tmdb, mediaType, tmdbId as number),
+    queryKey: titleDetailQueryKey(mediaType, tmdbId ?? -1),
+    queryFn: () => {
+      // `enabled` já impede este caminho, mas afirmar isso com um cast deixaria
+      // um `/movie/NaN` silencioso à espera de quem mexesse no `enabled`.
+      if (tmdbId === null) throw new Error('Detalhe pedido sem id do TMDB.');
+      return getTitleDetail(tmdb, mediaType, tmdbId);
+    },
     enabled: tmdbId !== null,
   });
 }
@@ -35,23 +40,43 @@ export function useTitleDetail(mediaType: MediaType, tmdbId: number | null) {
  * O upsert é idempotente, mas a guarda evita repeti-lo a cada re-render ou
  * refetch — abrir a tela uma vez é uma gravação, não uma por render.
  *
- * Uma falha aqui **não** derruba a tela: ver o filme é o trabalho principal, e
- * gravar a cópia local é preparação para o próximo passo. A tela avisa em vez
- * de esconder, porque sem essa linha o registro de exibição falharia depois.
+ * A guarda é limpa quando a gravação falha. Sem isso ela registraria a
+ * tentativa, e não o sucesso: um erro de rede passageiro queimaria a única
+ * chance e nada mais gravaria enquanto a tela estivesse aberta. Mutations não
+ * têm retry automático — só as queries têm.
  */
 export function usePersistOpenedTitle(detail: CatalogTitleDetail | undefined) {
-  const { mutate, isError } = useUpsertTitle();
+  const { mutate, isError, isPending } = useUpsertTitle();
   const persisted = useRef<string | null>(null);
+
+  const persist = useCallback(
+    (title: CatalogTitleDetail) => {
+      const key = `${title.mediaType}:${title.tmdbId}`;
+      persisted.current = key;
+
+      mutate(title, {
+        onError: () => {
+          // Libera para a próxima tentativa, seja pelo botão ou por um refetch.
+          if (persisted.current === key) persisted.current = null;
+        },
+      });
+    },
+    [mutate],
+  );
 
   useEffect(() => {
     if (!detail) return;
+    if (persisted.current === `${detail.mediaType}:${detail.tmdbId}`) return;
 
-    const key = `${detail.mediaType}:${detail.tmdbId}`;
-    if (persisted.current === key) return;
+    persist(detail);
+  }, [detail, persist]);
 
-    persisted.current = key;
-    mutate(detail);
-  }, [detail, mutate]);
-
-  return { falhouAoSalvar: isError };
+  return {
+    saveFailed: isError,
+    isSaving: isPending,
+    /** Repete a gravação sem exigir que a pessoa saia e volte para a tela. */
+    retrySave: useCallback(() => {
+      if (detail) persist(detail);
+    }, [detail, persist]),
+  };
 }

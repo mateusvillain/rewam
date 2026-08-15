@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatRuntime, parseTmdbId, releaseYear, titleSubtitle } from './title-presentation';
+import { formatRuntime, releaseYear, titleSubtitle } from './title-presentation';
 
 describe('releaseYear', () => {
   it('tira o ano da data do TMDB', () => {
@@ -42,28 +42,5 @@ describe('titleSubtitle', () => {
 
   it('não deixa separador sobrando sem ano', () => {
     expect(titleSubtitle(null, 'movie')).toBe('Filme');
-  });
-});
-
-describe('parseTmdbId', () => {
-  it('aceita id numérico', () => {
-    expect(parseTmdbId('27205')).toBe(27205);
-  });
-
-  it('usa o primeiro valor quando a rota repete o parâmetro', () => {
-    expect(parseTmdbId(['27205', '999'])).toBe(27205);
-  });
-
-  it('recusa o que não é id, para não pedir /movie/NaN ao TMDB', () => {
-    expect(parseTmdbId('abc')).toBeNull();
-    expect(parseTmdbId('27205x')).toBeNull();
-    expect(parseTmdbId('-1')).toBeNull();
-    expect(parseTmdbId('0')).toBeNull();
-    expect(parseTmdbId('1.5')).toBeNull();
-    expect(parseTmdbId(undefined)).toBeNull();
-  });
-
-  it('recusa número grande demais para ser um id íntegro', () => {
-    expect(parseTmdbId('99999999999999999999')).toBeNull();
   });
 });
