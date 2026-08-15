@@ -29,18 +29,29 @@ supabase/
 ```bash
 pnpm install
 cp .env.example .env
+pnpm db:start                 # sobe o Supabase local (requer Docker)
 pnpm --filter @rewam/app dev
 ```
 
+`pnpm db:start` imprime as URLs e chaves do stack local — use-as no `.env`. O Studio fica em `http://127.0.0.1:54323` e os e-mails de teste (confirmação, recuperação de senha) chegam no Mailpit, em `http://127.0.0.1:54324`.
+
+Para trabalhar contra o projeto remoto, faça `npx supabase login` e `npx supabase link --project-ref <ref>` uma vez, e troque os valores do `.env` pelos do painel.
+
 ## Scripts
 
-| Comando          | O que faz                                         |
-| ---------------- | ------------------------------------------------- |
-| `pnpm dev`       | Sobe as tarefas de desenvolvimento via Turborepo. |
-| `pnpm lint`      | ESLint em todos os pacotes.                       |
-| `pnpm typecheck` | Checagem de tipos.                                |
-| `pnpm test`      | Vitest.                                           |
-| `pnpm format`    | Prettier.                                         |
+| Comando          | O que faz                                                    |
+| ---------------- | ------------------------------------------------------------ |
+| `pnpm dev`       | Sobe as tarefas de desenvolvimento via Turborepo.            |
+| `pnpm lint`      | ESLint em todos os pacotes.                                  |
+| `pnpm typecheck` | Checagem de tipos.                                           |
+| `pnpm test`      | Vitest.                                                      |
+| `pnpm format`    | Prettier.                                                    |
+| `pnpm db:start`  | Sobe o Supabase local.                                       |
+| `pnpm db:stop`   | Derruba o Supabase local.                                    |
+| `pnpm db:status` | Mostra URLs e chaves do stack local.                         |
+| `pnpm db:reset`  | Recria o banco local aplicando migrações e seed do zero.     |
+| `pnpm db:diff`   | Gera o SQL da diferença entre o banco local e as migrações.  |
+| `pnpm db:push`   | Aplica as migrações versionadas no projeto remoto vinculado. |
 
 ## Variáveis de ambiente
 
