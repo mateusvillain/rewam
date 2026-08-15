@@ -1,53 +1,41 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { requestPasswordResetCode } from '@rewam/auth';
+import { signIn } from '@rewam/auth';
 import { colors, spacing, typography } from '@rewam/tokens';
-import { emailSchema } from '@rewam/types';
+import { credentialsSchema, type Credentials } from '@rewam/types';
 import { Button, Screen, TextField } from '@rewam/ui';
 import { Link, router, Stack } from 'expo-router';
 import { Controller, useForm } from 'react-hook-form';
 import { StyleSheet, Text, View } from 'react-native';
-import { z } from 'zod';
-import { classifyAuthError, translateAuthError } from '@/features/auth';
+import { translateAuthError } from '@/features/auth';
 import { supabase } from '@/lib/supabase';
 
-const formSchema = z.object({ email: emailSchema });
-type FormValues = z.infer<typeof formSchema>;
-
-export default function RecuperarSenhaScreen() {
+export default function EntrarScreen() {
   const {
     control,
     handleSubmit,
     setError,
     formState: { errors, isSubmitting },
-  } = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
-    defaultValues: { email: '' },
+  } = useForm<Credentials>({
+    resolver: zodResolver(credentialsSchema),
+    defaultValues: { email: '', password: '' },
   });
 
-  async function onSubmit({ email }: FormValues) {
-    const { error } = await requestPasswordResetCode(supabase, email);
+  async function onSubmit(values: Credentials) {
+    const { error } = await signIn(supabase, values);
 
-    // Um e-mail inexistente não pode ser distinguível de um existente: revelar
-    // isso entregaria quais endereços têm conta. Só falha de infraestrutura
-    // aparece — a classificação vive em um lugar só, junto das mensagens, para
-    // não haver duas listas capazes de divergir.
-    if (error && classifyAuthError(error) === 'infra') {
+    if (error) {
       setError('root', { message: translateAuthError(error) });
       return;
     }
 
-    router.push({ pathname: '/(auth)/nova-senha', params: { email } });
+    router.replace('/');
   }
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: 'Recuperar senha' }} />
+      <Stack.Screen options={{ title: 'Entrar' }} />
 
-      <Text style={styles.title}>Esqueceu a senha?</Text>
-      <Text style={styles.body}>
-        Informe o e-mail da sua conta. Enviaremos um código de 6 dígitos para você escolher uma nova
-        senha.
-      </Text>
+      <Text style={styles.title}>Entrar no Rewam</Text>
 
       <Controller
         control={control}
@@ -61,10 +49,25 @@ export default function RecuperarSenhaScreen() {
             error={errors.email?.message}
             autoCapitalize="none"
             autoComplete="email"
-            keyboardType="email-address"
             inputMode="email"
+            keyboardType="email-address"
             placeholder="voce@exemplo.com"
-            submitBehavior="blurAndSubmit"
+          />
+        )}
+      />
+
+      <Controller
+        control={control}
+        name="password"
+        render={({ field: { onChange, onBlur, value } }) => (
+          <TextField
+            label="Senha"
+            value={value}
+            onChangeText={onChange}
+            onBlur={onBlur}
+            error={errors.password?.message}
+            autoComplete="current-password"
+            secureTextEntry
             onSubmitEditing={handleSubmit(onSubmit)}
           />
         )}
@@ -73,14 +76,17 @@ export default function RecuperarSenhaScreen() {
       {errors.root?.message ? <Text style={styles.error}>{errors.root.message}</Text> : null}
 
       <Button
-        label={isSubmitting ? 'Enviando…' : 'Enviar código'}
+        label={isSubmitting ? 'Entrando…' : 'Entrar'}
         disabled={isSubmitting}
         onPress={handleSubmit(onSubmit)}
       />
 
       <View style={styles.links}>
-        <Link href="/(auth)/entrar" style={styles.link}>
-          Voltar para o login
+        <Link href="/(auth)/recuperar-senha" style={styles.link}>
+          Esqueci minha senha
+        </Link>
+        <Link href="/(auth)/criar-conta" style={styles.link}>
+          Criar uma conta
         </Link>
       </View>
     </Screen>
@@ -92,11 +98,6 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: typography.title.fontSize,
     fontWeight: '600',
-  },
-  body: {
-    color: colors.textMuted,
-    fontSize: typography.body.fontSize,
-    marginBottom: spacing.sm,
   },
   error: {
     color: colors.danger,
