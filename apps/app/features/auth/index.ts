@@ -13,3 +13,6 @@ export {
 export { useResendCooldown } from './use-resend-cooldown';
 export type { ResendFeedback } from './use-resend-cooldown';
 export { MissingEmailNotice } from './MissingEmailNotice';
+export { resolveRedirectTarget } from './redirect-target';
+export { resolveGuardDecision } from './route-guard';
+export type { GuardArea, GuardDecision } from './route-guard';

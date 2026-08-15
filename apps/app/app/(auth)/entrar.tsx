@@ -10,12 +10,18 @@ import {
   FormTitle,
   Screen,
 } from '@rewam/ui';
-import { Link, router, Stack } from 'expo-router';
+import { Link, router, Stack, useLocalSearchParams } from 'expo-router';
 import { useForm } from 'react-hook-form';
-import { isUnconfirmedEmailError, translateAuthError } from '@/features/auth';
+import {
+  isUnconfirmedEmailError,
+  resolveRedirectTarget,
+  translateAuthError,
+} from '@/features/auth';
 import { supabase } from '@/lib/supabase';
 
 export default function EntrarScreen() {
+  const { redirect } = useLocalSearchParams<{ redirect?: string }>();
+
   const {
     control,
     handleSubmit,
@@ -42,7 +48,9 @@ export default function EntrarScreen() {
       return;
     }
 
-    router.replace('/');
+    // Um link para tela interna continua valendo depois do login, em vez de
+    // desaguar sempre no início.
+    router.replace(resolveRedirectTarget(redirect));
   }
 
   return (
