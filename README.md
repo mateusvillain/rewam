@@ -52,6 +52,19 @@ Para trabalhar contra o projeto remoto, faça `npx supabase login` e `npx supaba
 | `pnpm db:reset`  | Recria o banco local aplicando migrações e seed do zero.     |
 | `pnpm db:diff`   | Gera o SQL da diferença entre o banco local e as migrações.  |
 | `pnpm db:push`   | Aplica as migrações versionadas no projeto remoto vinculado. |
+| `pnpm db:test`   | Roda as verificações de RLS e do trigger de perfil.          |
+
+## Migrações e tipos do banco
+
+Depois de escrever uma migração, regenere os tipos e faça commit do resultado:
+
+```bash
+pnpm db:reset                            # aplica as migrações do zero
+pnpm --filter @rewam/database gen:types  # regenera packages/database/src/types.generated.ts
+pnpm db:test                             # confere RLS e trigger de perfil
+```
+
+O CI repete esses passos num job próprio — subindo só os serviços que as verificações usam — e falha se os tipos versionados não corresponderem às migrações, de modo que schema e tipos não saiam de sincronia sem ninguém notar. A versão da CLI do Supabase é fixada exatamente, porque a checagem compara a saída do gerador byte a byte. `types.generated.ts` é arquivo gerado: fica fora do Prettier e do ESLint para bater byte a byte com o gerador — não edite à mão.
 
 ## Variáveis de ambiente
 

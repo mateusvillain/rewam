@@ -4,7 +4,15 @@ import prettier from 'eslint-config-prettier';
 
 export default tseslint.config(
   {
-    ignores: ['**/node_modules/**', '**/dist/**', '**/.expo/**', '**/.turbo/**', '**/coverage/**'],
+    ignores: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/.expo/**',
+      '**/.turbo/**',
+      '**/coverage/**',
+      // Arquivo gerado pelo Supabase: precisa bater byte a byte com o gerador.
+      'packages/database/src/types.generated.ts',
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

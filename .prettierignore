@@ -5,3 +5,4 @@ dist
 coverage
 pnpm-lock.yaml
 rewam-platform-plan.md
+packages/database/src/types.generated.ts
