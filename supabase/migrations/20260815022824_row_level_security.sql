@@ -50,9 +50,8 @@ create policy "Perfil próprio é editável pelo dono"
   using (id = (select auth.uid()))
   with check (id = (select auth.uid()));
 
--- Enquanto o trigger de cadastro não existe (REW-20), esta política é o que
--- permite ao dono criar o próprio perfil. Ela continua útil depois, como rede
--- para contas cujo perfil não tenha sido criado no cadastro.
+-- Rede de segurança: o perfil normalmente nasce com a conta, pelo trigger de
+-- cadastro. Esta política cobre contas cujo perfil não exista por algum motivo.
 create policy "Perfil próprio pode ser criado pelo dono"
   on public.profiles for insert
   to authenticated

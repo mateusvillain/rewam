@@ -3,56 +3,18 @@
 -- Roda em transação e faz rollback: nada persiste. Executar com o stack local no ar:
 --   pnpm db:test:rls
 --
+-- As asserções (expect_count, expect_failure, act_as) e o BEGIN vêm de _helpers.sql,
+-- concatenado por run.sh.
+--
 -- Cada bloco assume a identidade de uma conta via claims de JWT, exatamente como
 -- o PostgREST faz, e confere que ninguém enxerga ou altera dados alheios.
 
-begin;
-
-create or replace function pg_temp.act_as(user_id uuid)
-returns void language plpgsql as $$
-begin
-  execute format('set local role authenticated');
-  execute format('set local request.jwt.claims = %L', json_build_object('sub', user_id, 'role', 'authenticated')::text);
-end;
-$$;
-
--- Só aceita a recusa que interessa: falta de privilégio (inclui violação de
--- política de RLS) ou violação de constraint. Qualquer outro erro — um typo no
--- SQL, por exemplo — propaga e derruba a verificação em vez de passar por verde.
-create or replace function pg_temp.expect_failure(label text, stmt text)
-returns void language plpgsql as $$
-begin
-  begin
-    execute stmt;
-    raise exception 'FALHOU: % foi aceito e deveria ter sido rejeitado', label;
-  exception
-    when insufficient_privilege or check_violation or foreign_key_violation or unique_violation then
-      raise notice 'ok (rejeitado: %) — %', sqlstate, label;
-  end;
-end;
-$$;
-
-create or replace function pg_temp.expect_count(label text, stmt text, expected bigint)
-returns void language plpgsql as $$
-declare
-  found_count bigint;
-begin
-  execute stmt into found_count;
-  if found_count <> expected then
-    raise exception 'FALHOU: % retornou % linhas, esperado %', label, found_count, expected;
-  end if;
-  raise notice 'ok (% linha(s)) — %', found_count, label;
-end;
-$$;
-
 -- Massa de teste criada como superusuário, antes de assumir qualquer identidade.
-insert into auth.users (id, instance_id, aud, role, email)
-values ('11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'a@example.com'),
-       ('22222222-2222-2222-2222-222222222222', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'b@example.com');
-
-insert into public.profiles (id, name)
-values ('11111111-1111-1111-1111-111111111111', 'Pessoa A'),
-       ('22222222-2222-2222-2222-222222222222', 'Pessoa B');
+-- Os perfis não são inseridos aqui: o trigger de cadastro os cria a partir do
+-- metadado, e é justamente o comportamento real que queremos exercitar.
+insert into auth.users (id, instance_id, aud, role, email, raw_user_meta_data)
+values ('11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'a@example.com', '{"name": "Pessoa A"}'::jsonb),
+       ('22222222-2222-2222-2222-222222222222', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'b@example.com', '{"name": "Pessoa B"}'::jsonb);
 
 insert into public.titles (id, tmdb_id, media_type, title, runtime_minutes)
 values ('aaaaaaaa-0000-0000-0000-000000000001', 27205, 'movie', 'A Origem', 148);
