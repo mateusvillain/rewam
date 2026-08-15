@@ -1,13 +1,20 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { signUp } from '@rewam/auth';
-import { colors, spacing, typography } from '@rewam/tokens';
 import { signUpSchema, type SignUpInput } from '@rewam/types';
-import { Button, Screen, TextField } from '@rewam/ui';
+import {
+  Button,
+  ControlledTextField,
+  formLinkStyle,
+  FormDescription,
+  FormLinks,
+  FormMessage,
+  FormTitle,
+  Screen,
+} from '@rewam/ui';
 import { Link, router, Stack } from 'expo-router';
 import { useState } from 'react';
-import { Controller, useForm } from 'react-hook-form';
-import { StyleSheet, Text, View } from 'react-native';
-import { resolveSignUpOutcome, translateAuthError } from '@/features/auth';
+import { useForm } from 'react-hook-form';
+import { classifyAuthError, resolveSignUpOutcome, translateAuthError } from '@/features/auth';
 import { supabase } from '@/lib/supabase';
 
 export default function CriarContaScreen() {
@@ -27,13 +34,22 @@ export default function CriarContaScreen() {
     const { data, error } = await signUp(supabase, values);
 
     if (error) {
-      setError('root', { message: translateAuthError(error) });
+      // Erro de usuário aqui quase sempre significa "esse e-mail já tem conta",
+      // e dizer isso transformaria o cadastro num verificador de quem está
+      // cadastrado — justamente o que as telas de recuperação evitam. Então o
+      // caminho é o mesmo do cadastro bem-sucedido: avisamos que enviamos um
+      // código, e quem já tem conta descobre pelo e-mail que recebe.
+      if (classifyAuthError(error) === 'infra') {
+        setError('root', { message: translateAuthError(error) });
+        return;
+      }
+
+      setPendingEmail(values.email);
       return;
     }
 
     // Com confirmação de e-mail ligada, o cadastro não devolve sessão: falta
-    // digitar o código. A tela de confirmação chega na REW-50; até lá, o aviso
-    // aqui evita deixar a pessoa achando que já está dentro.
+    // digitar o código. A tela de confirmação chega na REW-50.
     if (resolveSignUpOutcome(data.session !== null) === 'needsConfirmation') {
       setPendingEmail(values.email);
       return;
@@ -46,13 +62,15 @@ export default function CriarContaScreen() {
     return (
       <Screen>
         <Stack.Screen options={{ title: 'Confirme seu e-mail' }} />
-        <Text style={styles.title}>Falta confirmar seu e-mail</Text>
-        <Text style={styles.body}>
+        <FormTitle>Falta confirmar seu e-mail</FormTitle>
+        <FormDescription>
           Enviamos um código para {pendingEmail}. Confirme para concluir o cadastro e entrar.
-        </Text>
-        <Link href="/(auth)/entrar" style={styles.link}>
-          Voltar para o login
-        </Link>
+        </FormDescription>
+        <FormLinks>
+          <Link href="/(auth)/entrar" style={formLinkStyle}>
+            Voltar para o login
+          </Link>
+        </FormLinks>
       </Screen>
     );
   }
@@ -61,62 +79,41 @@ export default function CriarContaScreen() {
     <Screen>
       <Stack.Screen options={{ title: 'Criar conta' }} />
 
-      <Text style={styles.title}>Criar conta no Rewam</Text>
+      <FormTitle>Criar conta no Rewam</FormTitle>
 
-      <Controller
+      <ControlledTextField
         control={control}
         name="name"
-        render={({ field: { onChange, onBlur, value } }) => (
-          <TextField
-            label="Nome"
-            value={value}
-            onChangeText={onChange}
-            onBlur={onBlur}
-            error={errors.name?.message}
-            autoComplete="name"
-            placeholder="Como quer ser chamado"
-          />
-        )}
+        label="Nome"
+        error={errors.name?.message}
+        autoComplete="name"
+        placeholder="Como quer ser chamado"
       />
 
-      <Controller
+      <ControlledTextField
         control={control}
         name="email"
-        render={({ field: { onChange, onBlur, value } }) => (
-          <TextField
-            label="E-mail"
-            value={value}
-            onChangeText={onChange}
-            onBlur={onBlur}
-            error={errors.email?.message}
-            autoCapitalize="none"
-            autoComplete="email"
-            inputMode="email"
-            keyboardType="email-address"
-            placeholder="voce@exemplo.com"
-          />
-        )}
+        label="E-mail"
+        error={errors.email?.message}
+        autoCapitalize="none"
+        autoComplete="email"
+        inputMode="email"
+        keyboardType="email-address"
+        placeholder="voce@exemplo.com"
       />
 
-      <Controller
+      <ControlledTextField
         control={control}
         name="password"
-        render={({ field: { onChange, onBlur, value } }) => (
-          <TextField
-            label="Senha"
-            value={value}
-            onChangeText={onChange}
-            onBlur={onBlur}
-            error={errors.password?.message}
-            autoComplete="new-password"
-            secureTextEntry
-            hint="Pelo menos 8 caracteres."
-            onSubmitEditing={handleSubmit(onSubmit)}
-          />
-        )}
+        label="Senha"
+        error={errors.password?.message}
+        autoComplete="new-password"
+        secureTextEntry
+        hint="Pelo menos 8 caracteres."
+        onSubmitEditing={handleSubmit(onSubmit)}
       />
 
-      {errors.root?.message ? <Text style={styles.error}>{errors.root.message}</Text> : null}
+      <FormMessage>{errors.root?.message}</FormMessage>
 
       <Button
         label={isSubmitting ? 'Criando conta…' : 'Criar conta'}
@@ -124,35 +121,11 @@ export default function CriarContaScreen() {
         onPress={handleSubmit(onSubmit)}
       />
 
-      <View style={styles.links}>
-        <Link href="/(auth)/entrar" style={styles.link}>
+      <FormLinks>
+        <Link href="/(auth)/entrar" style={formLinkStyle}>
           Já tenho conta
         </Link>
-      </View>
+      </FormLinks>
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  title: {
-    color: colors.text,
-    fontSize: typography.title.fontSize,
-    fontWeight: '600',
-  },
-  body: {
-    color: colors.textMuted,
-    fontSize: typography.body.fontSize,
-  },
-  error: {
-    color: colors.danger,
-    fontSize: typography.caption.fontSize,
-  },
-  links: {
-    gap: spacing.sm,
-    marginTop: spacing.sm,
-  },
-  link: {
-    color: colors.accent,
-    fontSize: typography.body.fontSize,
-  },
-});

@@ -5,13 +5,18 @@ import {
   updatePassword,
   verifyPasswordResetCode,
 } from '@rewam/auth';
-import { colors, spacing, typography } from '@rewam/tokens';
 import { passwordResetSchema, type PasswordResetInput } from '@rewam/types';
-import { Button, Screen, TextField } from '@rewam/ui';
+import {
+  Button,
+  ControlledTextField,
+  FormDescription,
+  FormMessage,
+  FormTitle,
+  Screen,
+} from '@rewam/ui';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Controller, useForm } from 'react-hook-form';
-import { StyleSheet, Text } from 'react-native';
+import { useForm } from 'react-hook-form';
 import { classifyAuthError, translateAuthError } from '@/features/auth';
 import { supabase } from '@/lib/supabase';
 
@@ -84,11 +89,11 @@ export default function NovaSenhaScreen() {
     return (
       <Screen>
         <Stack.Screen options={{ title: 'Nova senha' }} />
-        <Text style={styles.title}>Precisamos do seu e-mail</Text>
-        <Text style={styles.body}>
+        <FormTitle>Precisamos do seu e-mail</FormTitle>
+        <FormDescription>
           O código é enviado para um e-mail específico, e esta tela foi aberta sem essa informação.
           Recomece o pedido para receber um código novo.
-        </Text>
+        </FormDescription>
         <Button
           label="Pedir código de redefinição"
           onPress={() => router.replace('/(auth)/recuperar-senha')}
@@ -101,51 +106,39 @@ export default function NovaSenhaScreen() {
     <Screen>
       <Stack.Screen options={{ title: 'Nova senha' }} />
 
-      <Text style={styles.title}>Escolha uma nova senha</Text>
-      <Text style={styles.body}>
+      <FormTitle>Escolha uma nova senha</FormTitle>
+      <FormDescription>
         Digite o código que enviamos para {email} e a senha que passará a valer.
-      </Text>
+      </FormDescription>
 
-      <Controller
+      <ControlledTextField
         control={control}
         name="code"
-        render={({ field: { onChange, onBlur, value } }) => (
-          <TextField
-            label="Código de 6 dígitos"
-            value={value}
-            onChangeText={onChange}
-            onBlur={onBlur}
-            error={errors.code?.message}
-            autoComplete="one-time-code"
-            inputMode="numeric"
-            keyboardType="number-pad"
-            maxLength={6}
-            placeholder="000000"
-          />
-        )}
+        label="Código de 6 dígitos"
+        error={errors.code?.message}
+        autoComplete="one-time-code"
+        inputMode="numeric"
+        keyboardType="number-pad"
+        maxLength={6}
+        placeholder="000000"
       />
 
-      <Controller
+      <ControlledTextField
         control={control}
         name="password"
-        render={({ field: { onChange, onBlur, value } }) => (
-          <TextField
-            label="Nova senha"
-            value={value}
-            onChangeText={onChange}
-            onBlur={onBlur}
-            error={errors.password?.message}
-            autoComplete="new-password"
-            secureTextEntry
-            hint="Pelo menos 8 caracteres."
-            onSubmitEditing={handleSubmit(onSubmit)}
-          />
-        )}
+        label="Nova senha"
+        error={errors.password?.message}
+        autoComplete="new-password"
+        secureTextEntry
+        hint="Pelo menos 8 caracteres."
+        onSubmitEditing={handleSubmit(onSubmit)}
       />
 
-      {errors.root?.message ? <Text style={styles.error}>{errors.root.message}</Text> : null}
+      <FormMessage>{errors.root?.message}</FormMessage>
       {resend ? (
-        <Text style={resend.kind === 'erro' ? styles.error : styles.info}>{resend.message}</Text>
+        <FormMessage tone={resend.kind === 'erro' ? 'erro' : 'neutro'}>
+          {resend.message}
+        </FormMessage>
       ) : null}
 
       <Button
@@ -163,24 +156,3 @@ export default function NovaSenhaScreen() {
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  title: {
-    color: colors.text,
-    fontSize: typography.title.fontSize,
-    fontWeight: '600',
-  },
-  body: {
-    color: colors.textMuted,
-    fontSize: typography.body.fontSize,
-    marginBottom: spacing.sm,
-  },
-  error: {
-    color: colors.danger,
-    fontSize: typography.caption.fontSize,
-  },
-  info: {
-    color: colors.textMuted,
-    fontSize: typography.caption.fontSize,
-  },
-});
