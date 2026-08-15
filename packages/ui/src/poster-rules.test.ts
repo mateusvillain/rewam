@@ -41,10 +41,14 @@ describe('posterHeight', () => {
 
 describe('POSTER_SIZES', () => {
   it('pede ao TMDB uma imagem maior que a largura renderizada, para tela retina', () => {
-    const remoteWidth = { w154: 154, w342: 342, w500: 500, original: Number.POSITIVE_INFINITY };
+    // A largura sai do próprio nome do tamanho (`w342` → 342), em vez de uma
+    // tabela redigitada aqui: duplicar os números deixaria o teste passar
+    // afirmando algo que o @rewam/tmdb já não diz.
+    const remoteWidth = (remote: string) =>
+      remote === 'original' ? Number.POSITIVE_INFINITY : Number(remote.replace('w', ''));
 
     for (const { width, remote } of Object.values(POSTER_SIZES)) {
-      expect(remoteWidth[remote]).toBeGreaterThanOrEqual(width * 2);
+      expect(remoteWidth(remote)).toBeGreaterThanOrEqual(width * 2);
     }
   });
 
