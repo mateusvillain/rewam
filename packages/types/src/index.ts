@@ -55,22 +55,60 @@ export const catalogEpisodeSchema = episodeSchema
   .extend({ tmdbId: z.number().int().positive() });
 export type CatalogEpisode = z.infer<typeof catalogEpisodeSchema>;
 
+/**
+ * Instante vindo de uma coluna `timestamptz`.
+ *
+ * O deslocamento é aceito de propósito: o PostgREST serializa `timestamptz`
+ * como `2026-08-10T20:00:00+00:00`, não com `Z`. O padrão de `z.iso.datetime()`
+ * exige `Z` e recusaria toda linha real do banco — a validação de retorno
+ * quebraria justamente onde deveria proteger.
+ */
+export const timestampSchema = z.iso.datetime({ offset: true });
+
 export const watchEventSchema = z.object({
   id: z.uuid(),
   userId: z.uuid(),
   titleId: z.uuid(),
   episodeId: z.uuid().nullable(),
-  watchedAt: z.iso.datetime(),
+  watchedAt: timestampSchema,
   durationMinutes: z.number().int().positive().nullable(),
   notes: z.string().max(500).nullable(),
 });
 export type WatchEvent = z.infer<typeof watchEventSchema>;
 
+/**
+ * Exibição com o catálogo junto, como as listas de histórico precisam.
+ *
+ * Existe para que a lista traga pôster e título numa consulta só: sem o
+ * aninhamento, cada linha da tela viraria uma ida ao banco atrás do título.
+ * `episode` é nulo em filme e no registro agregado de série.
+ */
+export const watchEventWithContextSchema = watchEventSchema.extend({
+  title: titleSchema,
+  episode: episodeSchema.nullable(),
+});
+export type WatchEventWithContext = z.infer<typeof watchEventWithContextSchema>;
+
 /** Entrada de criação: `user_id` vem sempre de `auth.uid()`, nunca do cliente. */
 export const createWatchEventInputSchema = watchEventSchema
   .omit({ id: true, userId: true })
-  .extend({ watchedAt: z.iso.datetime().default(() => new Date().toISOString()) });
+  .extend({ watchedAt: timestampSchema.default(() => new Date().toISOString()) });
 export type CreateWatchEventInput = z.infer<typeof createWatchEventInputSchema>;
+
+/**
+ * Edição de uma exibição já registrada.
+ *
+ * Só os três campos que a pessoa de fato revisa. `titleId` e `episodeId` ficam
+ * de fora porque mudá-los não é editar o registro: é registrar outra coisa — e
+ * a numeração de reassistida dos dois alvos mudaria em silêncio.
+ *
+ * Campo ausente não é alterado; `null` explícito apaga o valor, que é como se
+ * remove uma nota ou se volta a duração para desconhecida.
+ */
+export const updateWatchEventInputSchema = watchEventSchema
+  .pick({ watchedAt: true, durationMinutes: true, notes: true })
+  .partial();
+export type UpdateWatchEventInput = z.infer<typeof updateWatchEventInputSchema>;
 
 export const watchStatsSchema = z.object({
   totalMinutes: z.number().int().nonnegative(),
