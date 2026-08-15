@@ -1,7 +1,7 @@
-import { colors } from '@rewam/tokens';
 import { LoadingScreen } from '@rewam/ui';
 import { Redirect, Stack, usePathname } from 'expo-router';
 import { resolveGuardDecision, useSession } from '@/features/auth';
+import { stackScreenOptions } from '@/features/navigation';
 
 /**
  * Área autenticada.
@@ -25,13 +25,5 @@ export default function AppLayout() {
     return <Redirect href={{ pathname: '/(auth)/entrar', params: { redirect: pathname } }} />;
   }
 
-  return (
-    <Stack
-      screenOptions={{
-        headerStyle: { backgroundColor: colors.background },
-        headerTintColor: colors.text,
-        contentStyle: { backgroundColor: colors.background },
-      }}
-    />
-  );
+  return <Stack screenOptions={stackScreenOptions} />;
 }

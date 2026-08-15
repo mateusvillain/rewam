@@ -7,6 +7,15 @@
  */
 const FALLBACK = '/';
 
+const AUTH_SEGMENTS = new Set([
+  '(auth)',
+  'entrar',
+  'criar-conta',
+  'recuperar-senha',
+  'nova-senha',
+  'confirmar-email',
+]);
+
 export function resolveRedirectTarget(raw: string | string[] | undefined): string {
   const value = Array.isArray(raw) ? raw[0] : raw;
 
@@ -19,8 +28,10 @@ export function resolveRedirectTarget(raw: string | string[] | undefined): strin
   if (value.includes('\\')) return FALLBACK;
 
   // Rotas de autenticação como destino criariam um ciclo: entrou, volta para o
-  // login, entra de novo.
-  if (value.startsWith('/(auth)') || value.startsWith('/entrar')) return FALLBACK;
+  // login, entra de novo. A comparação é por segmento inteiro — casar por
+  // prefixo recusaria uma rota futura como `/entrar-em-grupo`.
+  const [firstSegment] = value.split('?')[0]!.split('/').filter(Boolean);
+  if (firstSegment && AUTH_SEGMENTS.has(firstSegment.toLowerCase())) return FALLBACK;
 
   return value;
 }

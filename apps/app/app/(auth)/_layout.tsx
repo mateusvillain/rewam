@@ -1,7 +1,7 @@
-import { colors } from '@rewam/tokens';
 import { LoadingScreen } from '@rewam/ui';
-import { Redirect, Stack } from 'expo-router';
-import { resolveGuardDecision, useSession } from '@/features/auth';
+import { Redirect, Stack, useLocalSearchParams } from 'expo-router';
+import { resolveGuardDecision, resolveRedirectTarget, useSession } from '@/features/auth';
+import { stackScreenOptions } from '@/features/navigation';
 
 /**
  * Telas de entrada, cadastro e código.
@@ -12,6 +12,7 @@ import { resolveGuardDecision, useSession } from '@/features/auth';
  */
 export default function AuthLayout() {
   const { status } = useSession();
+  const { redirect } = useLocalSearchParams<{ redirect?: string }>();
   const decision = resolveGuardDecision(status, 'autenticacao');
 
   if (decision === 'aguardar') {
@@ -19,16 +20,12 @@ export default function AuthLayout() {
   }
 
   if (decision === 'redirecionar') {
-    return <Redirect href="/" />;
+    // Precisa respeitar o destino pretendido. Este guard reage ao mesmo evento
+    // de sessão que a tela de login, e corre com o redirecionamento dela; se
+    // aqui fosse sempre o início, quem seguiu um link para tela interna acabaria
+    // no lugar errado justamente por ter conseguido entrar.
+    return <Redirect href={resolveRedirectTarget(redirect)} />;
   }
 
-  return (
-    <Stack
-      screenOptions={{
-        headerStyle: { backgroundColor: colors.background },
-        headerTintColor: colors.text,
-        contentStyle: { backgroundColor: colors.background },
-      }}
-    />
-  );
+  return <Stack screenOptions={stackScreenOptions} />;
 }

@@ -1,18 +1,18 @@
-import { colors, spacing, typography } from '@rewam/tokens';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { colors } from '@rewam/tokens';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 export type LoadingScreenProps = {
-  /** Anunciado por leitores de tela; visível apenas se `showLabel`. */
+  /** Anunciado por leitores de tela. */
   label?: string;
-  showLabel?: boolean;
 };
 
 /** Espera de tela cheia, usada enquanto ainda não se sabe se existe sessão. */
-export function LoadingScreen({ label = 'Carregando', showLabel = false }: LoadingScreenProps) {
+export function LoadingScreen({ label = 'Carregando' }: LoadingScreenProps) {
   return (
-    <View style={styles.root} accessibilityLabel={label} role="progressbar">
+    // `accessible` é o que faz o rótulo ser anunciado no iOS e no Android; sem
+    // ele, um container comum costuma ser ignorado pelo leitor de tela.
+    <View accessible accessibilityLabel={label} role="progressbar" style={styles.root}>
       <ActivityIndicator color={colors.accent} size="large" />
-      {showLabel ? <Text style={styles.label}>{label}</Text> : null}
     </View>
   );
 }
@@ -22,11 +22,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: colors.background,
     flex: 1,
-    gap: spacing.md,
     justifyContent: 'center',
-  },
-  label: {
-    color: colors.textMuted,
-    fontSize: typography.body.fontSize,
   },
 });

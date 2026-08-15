@@ -25,6 +25,13 @@ describe('resolveRedirectTarget', () => {
   it('recusa telas de autenticação, que criariam ciclo', () => {
     expect(resolveRedirectTarget('/(auth)/entrar')).toBe('/');
     expect(resolveRedirectTarget('/entrar')).toBe('/');
+    expect(resolveRedirectTarget('/confirmar-email?email=a@b.c')).toBe('/');
+  });
+
+  it('não recusa rota que apenas começa com o mesmo texto', () => {
+    // A comparação é por segmento: casar por prefixo bloquearia uma rota
+    // legítima como esta.
+    expect(resolveRedirectTarget('/entrar-em-grupo')).toBe('/entrar-em-grupo');
   });
 
   it('usa o primeiro valor quando o parâmetro vem repetido', () => {
