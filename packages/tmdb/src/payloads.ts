@@ -44,6 +44,15 @@ export const tmdbSearchResultSchema = z.object({
 });
 export type TmdbSearchResult = z.infer<typeof tmdbSearchResultSchema>;
 
+/** Envelope de qualquer `/search/*`: os totais vêm ao lado dos resultados. */
+export const tmdbSearchResponseSchema = z.object({
+  page: z.number().int().nonnegative(),
+  total_pages: z.number().int().nonnegative(),
+  total_results: z.number().int().nonnegative(),
+  results: z.array(tmdbSearchResultSchema),
+});
+export type TmdbSearchResponse = z.infer<typeof tmdbSearchResponseSchema>;
+
 export const tmdbMovieDetailSchema = z.object({
   id: tmdbId,
   title: requiredTitle,
