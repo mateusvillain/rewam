@@ -1,7 +1,7 @@
 import { colors, typography } from '@rewam/tokens';
-import { Screen } from '@rewam/ui';
+import { formLinkStyle, FormLinks, Screen } from '@rewam/ui';
 import { formatDuration } from '@rewam/utils';
-import { Stack } from 'expo-router';
+import { Link, Stack } from 'expo-router';
 import { StyleSheet, Text } from 'react-native';
 
 export default function HomeScreen() {
@@ -17,6 +17,12 @@ export default function HomeScreen() {
       <Text style={styles.caption}>
         Busca no TMDB, histórico e estatísticas chegam nos próximos incrementos.
       </Text>
+
+      <FormLinks>
+        <Link href="/perfil" style={formLinkStyle}>
+          Seu perfil
+        </Link>
+      </FormLinks>
     </Screen>
   );
 }
