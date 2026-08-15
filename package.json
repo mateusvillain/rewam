@@ -22,7 +22,7 @@
     "db:reset": "supabase db reset",
     "db:diff": "supabase db diff",
     "db:push": "supabase db push",
-    "db:test:rls": "docker exec -i supabase_db_rewam psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/rls.sql"
+    "db:test:rls": "docker exec -i $(docker ps -qf name=supabase_db_ | head -1) psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/rls.sql"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

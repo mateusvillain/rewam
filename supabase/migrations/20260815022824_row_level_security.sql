@@ -15,10 +15,19 @@
 -- ---------------------------------------------------------------------------
 --
 -- RLS filtra linhas, mas só depois de o papel ter privilégio sobre a tabela.
--- `authenticated` recebe o necessário e as políticas abaixo decidem o resto;
--- `anon` não recebe nada, então visitante sem sessão nem chega às políticas.
+-- `authenticated` recebe o necessário e as políticas abaixo decidem o resto.
+--
+-- O revoke não é decorativo: projetos Supabase costumam ter ALTER DEFAULT
+-- PRIVILEGES concedendo a anon nas tabelas criadas pelo papel das migrações.
+-- Sem revogar, "anon não tem acesso" seria verdade só no banco local.
 
-grant select, insert, update, delete on public.profiles to authenticated;
+revoke all on public.profiles from anon, public;
+revoke all on public.titles from anon, public;
+revoke all on public.seasons from anon, public;
+revoke all on public.episodes from anon, public;
+revoke all on public.watch_events from anon, public;
+
+grant select, insert, update on public.profiles to authenticated;
 grant select, insert, update on public.titles to authenticated;
 grant select, insert, update on public.seasons to authenticated;
 grant select, insert, update on public.episodes to authenticated;
@@ -41,17 +50,16 @@ create policy "Perfil próprio é editável pelo dono"
   using (id = (select auth.uid()))
   with check (id = (select auth.uid()));
 
--- O insert fica a cargo do trigger de cadastro (security definer); o dono ainda
--- pode inserir o próprio perfil caso o registro não exista por algum motivo.
+-- Enquanto o trigger de cadastro não existe (REW-20), esta política é o que
+-- permite ao dono criar o próprio perfil. Ela continua útil depois, como rede
+-- para contas cujo perfil não tenha sido criado no cadastro.
 create policy "Perfil próprio pode ser criado pelo dono"
   on public.profiles for insert
   to authenticated
   with check (id = (select auth.uid()));
 
-create policy "Perfil próprio pode ser removido pelo dono"
-  on public.profiles for delete
-  to authenticated
-  using (id = (select auth.uid()));
+-- Sem política de DELETE: apagar a conta remove auth.users e o perfil vai junto
+-- pela cascata, então o cliente não precisa dessa permissão.
 
 -- ---------------------------------------------------------------------------
 -- Catálogo: titles, seasons, episodes

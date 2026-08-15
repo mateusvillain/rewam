@@ -1,7 +1,7 @@
 -- Verificação das políticas de RLS com duas contas.
 --
 -- Roda em transação e faz rollback: nada persiste. Executar com o stack local no ar:
---   docker exec -i supabase_db_rewam psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/rls.sql
+--   pnpm db:test:rls
 --
 -- Cada bloco assume a identidade de uma conta via claims de JWT, exatamente como
 -- o PostgREST faz, e confere que ninguém enxerga ou altera dados alheios.
@@ -16,6 +16,9 @@ begin
 end;
 $$;
 
+-- Só aceita a recusa que interessa: falta de privilégio (inclui violação de
+-- política de RLS) ou violação de constraint. Qualquer outro erro — um typo no
+-- SQL, por exemplo — propaga e derruba a verificação em vez de passar por verde.
 create or replace function pg_temp.expect_failure(label text, stmt text)
 returns void language plpgsql as $$
 begin
@@ -23,9 +26,8 @@ begin
     execute stmt;
     raise exception 'FALHOU: % foi aceito e deveria ter sido rejeitado', label;
   exception
-    when others then
-      if sqlerrm like 'FALHOU:%' then raise; end if;
-      raise notice 'ok (rejeitado) — %', label;
+    when insufficient_privilege or check_violation or foreign_key_violation or unique_violation then
+      raise notice 'ok (rejeitado: %) — %', sqlstate, label;
   end;
 end;
 $$;
@@ -101,6 +103,10 @@ select pg_temp.expect_failure('A cria perfil alheio',
 
 select pg_temp.expect_failure('A apaga catálogo',
   $$delete from public.titles where id = 'aaaaaaaa-0000-0000-0000-000000000001'$$);
+
+-- Perfil some junto com a conta, pela cascata de auth.users; o cliente não apaga.
+select pg_temp.expect_failure('A apaga o próprio perfil',
+  $$delete from public.profiles where id = '11111111-1111-1111-1111-111111111111'$$);
 
 -- Sem user_id explícito, o default auth.uid() preenche a coluna.
 insert into public.watch_events (title_id, duration_minutes)
