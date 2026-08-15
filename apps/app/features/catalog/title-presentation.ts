@@ -29,9 +29,12 @@ export function formatRuntime(runtimeMinutes: number | null): string {
 }
 
 /**
- * Linha de apoio sob o título: ano e tipo, sem separador sobrando quando falta
- * um dos dois.
+ * Linha de apoio sob o título: tipo e ano.
+ *
+ * Ano ausente é dito, não omitido — pelo mesmo motivo de `formatRuntime` acima.
+ * Sumir com o campo faria a pessoa achar que esqueceu de olhar, quando a
+ * verdade é que o TMDB não informa a data.
  */
 export function titleSubtitle(year: string | null, mediaType: 'movie' | 'tv'): string {
-  return [year, mediaType === 'movie' ? 'Filme' : 'Série'].filter(Boolean).join(' · ');
+  return `${mediaType === 'movie' ? 'Filme' : 'Série'} · ${year ?? 'ano desconhecido'}`;
 }

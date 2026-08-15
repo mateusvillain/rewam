@@ -9,6 +9,8 @@ export type ButtonProps = Omit<PressableProps, 'children'> & {
 export function Button({ label, variant = 'primary', disabled, style, ...rest }: ButtonProps) {
   return (
     <Pressable
+      // Antes do spread de propósito: assim uma tela que precise de outro papel
+      // — `radio` num grupo de filtros, por exemplo — consegue sobrescrever.
       accessibilityRole="button"
       disabled={disabled}
       style={[

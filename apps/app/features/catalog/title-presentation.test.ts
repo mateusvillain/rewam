@@ -35,12 +35,14 @@ describe('formatRuntime', () => {
 });
 
 describe('titleSubtitle', () => {
-  it('junta ano e tipo', () => {
-    expect(titleSubtitle('2010', 'movie')).toBe('2010 · Filme');
-    expect(titleSubtitle('2008', 'tv')).toBe('2008 · Série');
+  it('junta tipo e ano', () => {
+    expect(titleSubtitle('2010', 'movie')).toBe('Filme · 2010');
+    expect(titleSubtitle('2008', 'tv')).toBe('Série · 2008');
   });
 
-  it('não deixa separador sobrando sem ano', () => {
-    expect(titleSubtitle(null, 'movie')).toBe('Filme');
+  it('diz que o ano é desconhecido em vez de sumir com ele', () => {
+    // Omitir faria parecer descuido da tela; o campo é pedido, e a ausência é
+    // do TMDB. Mesma regra de formatRuntime.
+    expect(titleSubtitle(null, 'movie')).toBe('Filme · ano desconhecido');
   });
 });

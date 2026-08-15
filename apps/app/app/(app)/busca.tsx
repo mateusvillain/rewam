@@ -1,10 +1,10 @@
 import { spacing } from '@rewam/tokens';
-import { Button, FormDescription, FormTitle, Screen, TextField } from '@rewam/ui';
+import { Button, FormDescription, Screen, TextField } from '@rewam/ui';
 import { Stack } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, View } from 'react-native';
 
-import { describeCatalogError } from '@/features/catalog';
+import { CatalogErrorNotice } from '@/features/catalog';
 import {
   SEARCH_FILTERS,
   SearchResultRow,
@@ -19,10 +19,13 @@ import {
  * É a porta de entrada para registrar qualquer exibição. Os três estados que a
  * lista pode ter — carregando, vazia e com erro — são tratados aqui, e não pela
  * lista, porque cada um pede um recado diferente.
+ *
+ * Campo e filtros ficam de pé mesmo no erro: sem isso, uma falha que não se
+ * resolve repetindo deixaria a pessoa sem nada para fazer além de sair.
  */
 export default function SearchScreen() {
   const [term, setTerm] = useState('');
-  const [filter, setFilter] = useState<SearchFilterId>('todos');
+  const [filter, setFilter] = useState<SearchFilterId>('all');
 
   const { data, isFetching, isError, error, refetch, debouncedTerm, isDebouncing } = useSearch(
     term,
@@ -30,10 +33,6 @@ export default function SearchScreen() {
   );
 
   const results = data?.results ?? [];
-  // O termo consultado, não o que está sendo digitado: senão a lista diria
-  // "nenhum resultado" para uma busca que ainda nem saiu.
-  const placeholder = searchPlaceholder(debouncedTerm, results.length);
-  const isBusy = isFetching || isDebouncing;
 
   return (
     <Screen>
@@ -58,33 +57,31 @@ export default function SearchScreen() {
             variant={filter === id ? 'primary' : 'ghost'}
             onPress={() => setFilter(id)}
             accessibilityRole="radio"
-            accessibilityState={{ selected: filter === id }}
+            // `checked`, e não `selected`: um `role="radio"` sem `aria-checked`
+            // é inválido para leitor de tela.
+            accessibilityState={{ checked: filter === id }}
           />
         ))}
       </View>
 
       {isError ? (
-        <ErrorState error={error} onRetry={() => void refetch()} isRetrying={isFetching} />
+        <CatalogErrorNotice error={error} onRetry={() => void refetch()} isRetrying={isFetching} />
       ) : (
         <FlatList
           data={results}
           keyExtractor={(result) => `${result.mediaType}:${result.tmdbId}`}
           renderItem={({ item }) => <SearchResultRow result={item} />}
-          contentContainerStyle={styles.list}
+          // `flex: 1` no próprio FlatList: sem isso ele se dimensiona pelo
+          // conteúdo dentro de um pai `flex: 1` e corta em vez de rolar.
+          style={styles.list}
+          contentContainerStyle={styles.listContent}
           keyboardShouldPersistTaps="handled"
           ListEmptyComponent={
-            // O indicador aparece só com a lista vazia: mantido junto dos
-            // resultados, ele piscaria a cada tecla sobre uma lista que já
-            // serve para ler.
-            isBusy ? (
-              <ActivityIndicator accessibilityLabel="Buscando" style={styles.loading} />
-            ) : placeholder === 'digite' ? (
-              <FormDescription>Digite o nome de um filme ou série para começar.</FormDescription>
-            ) : placeholder === 'nenhum' ? (
-              <FormDescription>
-                Nenhum resultado para “{debouncedTerm}”. Tente outro nome ou troque o filtro.
-              </FormDescription>
-            ) : null
+            <EmptyState
+              term={debouncedTerm}
+              resultCount={results.length}
+              isBusy={isFetching || isDebouncing}
+            />
           }
         />
       )}
@@ -92,30 +89,39 @@ export default function SearchScreen() {
   );
 }
 
-function ErrorState({
-  error,
-  onRetry,
-  isRetrying,
+/**
+ * O que aparece no lugar da lista quando ela está vazia.
+ *
+ * O indicador só entra aqui, e não junto dos resultados: mantido lá, piscaria a
+ * cada tecla sobre uma lista que já serve para ler.
+ */
+function EmptyState({
+  term,
+  resultCount,
+  isBusy,
 }: {
-  error: unknown;
-  onRetry: () => void;
-  isRetrying: boolean;
+  term: string;
+  resultCount: number;
+  isBusy: boolean;
 }) {
-  const { title, detail, canRetry } = describeCatalogError(error);
+  if (isBusy) {
+    return <ActivityIndicator accessibilityLabel="Buscando" style={styles.loading} />;
+  }
 
-  return (
-    <View style={styles.error}>
-      <FormTitle>{title}</FormTitle>
-      <FormDescription>{detail}</FormDescription>
-      {canRetry ? (
-        <Button
-          label={isRetrying ? 'Tentando…' : 'Tentar de novo'}
-          onPress={onRetry}
-          disabled={isRetrying}
-        />
-      ) : null}
-    </View>
-  );
+  // Decidido pelo termo já consultado, não pelo que está sendo digitado: senão
+  // a tela diria "nenhum resultado" para uma busca que ainda nem saiu.
+  switch (searchPlaceholder(term, resultCount)) {
+    case 'empty-term':
+      return <FormDescription>Digite o nome de um filme ou série para começar.</FormDescription>;
+    case 'no-results':
+      return (
+        <FormDescription>
+          Nenhum resultado para “{term}”. Tente outro nome ou troque o filtro.
+        </FormDescription>
+      );
+    default:
+      return null;
+  }
 }
 
 const styles = StyleSheet.create({
@@ -124,13 +130,13 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   list: {
+    flex: 1,
+  },
+  listContent: {
     gap: spacing.md,
     paddingBottom: spacing.lg,
   },
   loading: {
     marginTop: spacing.lg,
-  },
-  error: {
-    gap: spacing.sm,
   },
 });

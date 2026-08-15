@@ -4,7 +4,7 @@ import { filterToMediaType, SEARCH_FILTERS, searchPlaceholder } from './search-f
 
 describe('filterToMediaType', () => {
   it('não restringe o tipo em "todos", para cair no /search/multi', () => {
-    expect(filterToMediaType('todos')).toBeUndefined();
+    expect(filterToMediaType('all')).toBeUndefined();
   });
 
   it('repassa o tipo escolhido', () => {
@@ -16,21 +16,21 @@ describe('filterToMediaType', () => {
     // Um filtro novo sem tradução aqui viraria busca sem filtro, em silêncio.
     for (const filter of SEARCH_FILTERS) {
       const mediaType = filterToMediaType(filter.id);
-      expect(filter.id === 'todos' ? mediaType === undefined : mediaType === filter.id).toBe(true);
+      expect(filter.id === 'all' ? mediaType === undefined : mediaType === filter.id).toBe(true);
     }
   });
 });
 
 describe('searchPlaceholder', () => {
   it('pede um termo enquanto o campo está em branco', () => {
-    expect(searchPlaceholder('', 0)).toBe('digite');
-    expect(searchPlaceholder('   ', 0)).toBe('digite');
+    expect(searchPlaceholder('', 0)).toBe('empty-term');
+    expect(searchPlaceholder('   ', 0)).toBe('empty-term');
   });
 
   it('só diz "nenhum resultado" depois de alguém ter buscado', () => {
     // Sem esta separação, abrir a tela já acusaria uma busca fracassada que
     // ninguém fez.
-    expect(searchPlaceholder('origem', 0)).toBe('nenhum');
+    expect(searchPlaceholder('origem', 0)).toBe('no-results');
   });
 
   it('não mostra recado quando há resultados', () => {
