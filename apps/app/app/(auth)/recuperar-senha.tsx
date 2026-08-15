@@ -1,11 +1,18 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { requestPasswordResetCode } from '@rewam/auth';
-import { colors, spacing, typography } from '@rewam/tokens';
 import { emailSchema } from '@rewam/types';
-import { Button, Screen, TextField } from '@rewam/ui';
-import { router, Stack } from 'expo-router';
-import { Controller, useForm } from 'react-hook-form';
-import { StyleSheet, Text } from 'react-native';
+import {
+  Button,
+  ControlledTextField,
+  formLinkStyle,
+  FormDescription,
+  FormLinks,
+  FormMessage,
+  FormTitle,
+  Screen,
+} from '@rewam/ui';
+import { Link, router, Stack } from 'expo-router';
+import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { classifyAuthError, translateAuthError } from '@/features/auth';
 import { supabase } from '@/lib/supabase';
@@ -43,57 +50,39 @@ export default function RecuperarSenhaScreen() {
     <Screen>
       <Stack.Screen options={{ title: 'Recuperar senha' }} />
 
-      <Text style={styles.title}>Esqueceu a senha?</Text>
-      <Text style={styles.body}>
+      <FormTitle>Esqueceu a senha?</FormTitle>
+      <FormDescription>
         Informe o e-mail da sua conta. Enviaremos um código de 6 dígitos para você escolher uma nova
         senha.
-      </Text>
+      </FormDescription>
 
-      <Controller
+      <ControlledTextField
         control={control}
         name="email"
-        render={({ field: { onChange, onBlur, value } }) => (
-          <TextField
-            label="E-mail"
-            value={value}
-            onChangeText={onChange}
-            onBlur={onBlur}
-            error={errors.email?.message}
-            autoCapitalize="none"
-            autoComplete="email"
-            keyboardType="email-address"
-            inputMode="email"
-            placeholder="voce@exemplo.com"
-            submitBehavior="blurAndSubmit"
-            onSubmitEditing={handleSubmit(onSubmit)}
-          />
-        )}
+        label="E-mail"
+        error={errors.email?.message}
+        autoCapitalize="none"
+        autoComplete="email"
+        keyboardType="email-address"
+        inputMode="email"
+        placeholder="voce@exemplo.com"
+        submitBehavior="blurAndSubmit"
+        onSubmitEditing={handleSubmit(onSubmit)}
       />
 
-      {errors.root?.message ? <Text style={styles.error}>{errors.root.message}</Text> : null}
+      <FormMessage>{errors.root?.message}</FormMessage>
 
       <Button
         label={isSubmitting ? 'Enviando…' : 'Enviar código'}
         disabled={isSubmitting}
         onPress={handleSubmit(onSubmit)}
       />
+
+      <FormLinks>
+        <Link href="/(auth)/entrar" style={formLinkStyle}>
+          Voltar para o login
+        </Link>
+      </FormLinks>
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  title: {
-    color: colors.text,
-    fontSize: typography.title.fontSize,
-    fontWeight: '600',
-  },
-  body: {
-    color: colors.textMuted,
-    fontSize: typography.body.fontSize,
-    marginBottom: spacing.sm,
-  },
-  error: {
-    color: colors.danger,
-    fontSize: typography.caption.fontSize,
-  },
-});

@@ -30,6 +30,21 @@ describe('translateAuthError', () => {
     );
   });
 
+  it('avisa quando a conta ainda não foi confirmada', () => {
+    expect(translateAuthError({ code: 'email_not_confirmed', message: '' })).toBe(
+      'Confirme seu e-mail antes de entrar.',
+    );
+    expect(translateAuthError({ message: 'Email not confirmed' })).toBe(
+      'Confirme seu e-mail antes de entrar.',
+    );
+  });
+
+  it('não revela existência de conta ao classificar cadastro duplicado', () => {
+    // A mensagem existe para quem já sabe que tem conta, mas a classificação
+    // como 'user' é o que faz a tela de cadastro esconder o erro.
+    expect(classifyAuthError({ code: 'user_already_exists', message: '' })).toBe('user');
+  });
+
   it('não repassa mensagem técnica desconhecida', () => {
     const traduzido = translateAuthError({ message: 'PGRST301: JWSError JWSInvalidSignature' });
     expect(traduzido).not.toContain('PGRST301');
