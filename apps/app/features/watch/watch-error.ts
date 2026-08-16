@@ -24,8 +24,12 @@ export function describeWatchError(error: unknown): WatchErrorPresentation {
 
   // Sobra o que não veio do banco: falha de rede antes da requisição, ou um
   // defeito nosso ao montar a entrada. Repetir é a única saída que a pessoa tem.
+  //
+  // A frase é deliberadamente sobre "falar com o servidor", e não sobre
+  // registrar: a tela de início mostra esta mesma mensagem quando o total
+  // falha, e ali não há exibição alguma sendo registrada.
   return {
-    message: 'Não foi possível registrar esta exibição. Tente de novo.',
+    message: 'Não foi possível falar com o servidor. Tente de novo.',
     canRetry: true,
   };
 }

@@ -87,3 +87,6 @@ set local role anon;
 -- Sem privilégio de execução: o total é dado pessoal, e a função não tem
 -- parâmetro que pudesse restringi-lo se ela fosse aberta.
 select pg_temp.expect_failure('anon executa watch_stats', $$select * from public.watch_stats()$$);
+
+reset role;
+rollback;

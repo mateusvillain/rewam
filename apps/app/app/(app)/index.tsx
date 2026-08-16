@@ -3,13 +3,10 @@ import { Button, FormDescription, FormMessage, formLinkStyle, FormLinks, Screen 
 import { Link, Stack, useRouter } from 'expo-router';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
-import {
-  describeIncompleteTotal,
-  formatTotal,
-  hasNothingYet,
-  useWatchStats,
-} from '@/features/home';
-import { describeWatchError } from '@/features/watch';
+import { formatDuration } from '@rewam/utils';
+
+import { describeIncompleteTotal, hasNothingYet, useWatchStats } from '@/features/home';
+import { describeWatchError, type WatchErrorPresentation } from '@/features/watch';
 
 /**
  * Tela de início.
@@ -32,18 +29,17 @@ export default function HomeScreen() {
       {stats.isPending ? (
         <ActivityIndicator accessibilityLabel="Carregando seu total" style={styles.loading} />
       ) : stats.isError ? (
-        <View style={styles.block}>
-          <FormMessage>{describeWatchError(stats.error).message}</FormMessage>
-          <Button
-            label={stats.isFetching ? 'Tentando…' : 'Tentar de novo'}
-            variant="ghost"
-            disabled={stats.isFetching}
-            onPress={() => void stats.refetch()}
-          />
-        </View>
+        <TotalError
+          failure={describeWatchError(stats.error)}
+          isRetrying={stats.isFetching}
+          onRetry={() => void stats.refetch()}
+        />
       ) : (
         <Total
-          total={formatTotal(stats.data.totalMinutes)}
+          // `formatDuration` já devolve "0 min" para zero, que é o certo aqui:
+          // quem ainda não registrou nada tem zero minutos, não um total
+          // desconhecido.
+          total={formatDuration(stats.data.totalMinutes)}
           incomplete={describeIncompleteTotal(stats.data)}
           isEmpty={hasNothingYet(stats.data)}
         />
@@ -71,26 +67,56 @@ function Total({
   incomplete: string | null;
   isEmpty: boolean;
 }) {
-  if (isEmpty) {
-    return (
-      <View style={styles.block}>
-        <Text style={styles.label}>Tempo assistido</Text>
-        <Text style={styles.total}>{total}</Text>
-        <FormDescription>
-          Você ainda não registrou nada. Busque um filme e marque como assistido para o total
-          começar a contar.
-        </FormDescription>
-      </View>
-    );
-  }
+  const invite = isEmpty
+    ? 'Você ainda não registrou nada. Busque um filme e marque como assistido para o total começar a contar.'
+    : null;
 
   return (
-    // Agrupado num anúncio só: lidos soltos, o rótulo e o número viram dois
-    // itens sem relação para quem usa leitor de tela.
-    <View accessible accessibilityLabel={`Tempo assistido: ${total}`} style={styles.block}>
+    // Agrupado num anúncio só, nos dois estados: lidos soltos, o rótulo e o
+    // número viram dois itens sem relação para quem usa leitor de tela.
+    <View
+      accessible
+      accessibilityLabel={['Tempo assistido:', total, invite ?? incomplete ?? '']
+        .filter(Boolean)
+        .join(' ')}
+      style={styles.block}
+    >
       <Text style={styles.label}>Tempo assistido</Text>
       <Text style={styles.total}>{total}</Text>
+      {invite ? <FormDescription>{invite}</FormDescription> : null}
       {incomplete ? <FormMessage tone="neutro">{incomplete}</FormMessage> : null}
+    </View>
+  );
+}
+
+/**
+ * A falha ao carregar o total.
+ *
+ * O botão só aparece quando repetir pode dar outro resultado — a mesma regra
+ * que `CatalogErrorNotice` aplica ao catálogo. Oferecer "tentar de novo" para
+ * uma sessão expirada ou uma consulta malformada faria a pessoa insistir num
+ * caminho que falha igual todas as vezes.
+ */
+function TotalError({
+  failure,
+  isRetrying,
+  onRetry,
+}: {
+  failure: WatchErrorPresentation;
+  isRetrying: boolean;
+  onRetry: () => void;
+}) {
+  return (
+    <View style={styles.block}>
+      <FormMessage>{failure.message}</FormMessage>
+      {failure.canRetry ? (
+        <Button
+          label={isRetrying ? 'Tentando…' : 'Tentar de novo'}
+          variant="ghost"
+          disabled={isRetrying}
+          onPress={onRetry}
+        />
+      ) : null}
     </View>
   );
 }
