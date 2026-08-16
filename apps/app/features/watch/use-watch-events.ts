@@ -1,5 +1,6 @@
 import {
   createWatchEvent,
+  createWatchEvents,
   deleteWatchEvent,
   getTitleWatchSummary,
   type TitleWatchSummary,
@@ -57,6 +58,26 @@ export function useCreateWatchEvent() {
   return useMutation({
     mutationFn: (input: CreateWatchEventInput): Promise<WatchEvent> =>
       createWatchEvent(supabase, input),
+
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: watchEventsKey });
+    },
+  });
+}
+
+/**
+ * Registra várias exibições de uma vez.
+ *
+ * Separada de `useCreateWatchEvent` porque a operação no banco é outra: um
+ * insert com a lista inteira, atômico. Reusar a mutação singular num laço
+ * gravaria N vezes e abriria a porta para meia temporada registrada.
+ */
+export function useCreateWatchEvents() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (inputs: CreateWatchEventInput[]): Promise<WatchEvent[]> =>
+      createWatchEvents(supabase, inputs),
 
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: watchEventsKey });
