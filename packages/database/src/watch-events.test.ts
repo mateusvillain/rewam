@@ -6,8 +6,8 @@ import { DatabaseError } from './errors';
 import {
   MAX_LIMIT,
   createWatchEvent,
-  getTitleWatchSummary,
   deleteWatchEvent,
+  getTitleWatchSummary,
   listWatchEvents,
   listWatchEventsByTitle,
   updateWatchEvent,
@@ -402,9 +402,9 @@ describe('deleteWatchEvent', () => {
 });
 
 describe('getTitleWatchSummary', () => {
-  it('pede contagem exata e uma linha só', () => {
+  it('pede contagem exata e uma linha só', async () => {
     const { client, calls } = fakeClient({ data: [eventoRow], count: 3 });
-    void getTitleWatchSummary(client, TITLE_ID);
+    await getTitleWatchSummary(client, TITLE_ID);
 
     // A contagem vem do cabeçalho, então `limit(1)` não a reduz: é assim que
     // uma requisição só entrega o número e o último registro.
@@ -452,13 +452,15 @@ describe('getTitleWatchSummary', () => {
     expect(calls.eq.mock.calls.map(([coluna]) => coluna)).not.toContain('user_id');
   });
 
-  it('cai para o tamanho da página se a contagem não vier', async () => {
-    // `count` é anulável no tipo do cliente. Assumir zero diria "nunca
-    // assistido" para um título que acabou de devolver uma exibição.
+  it('falha alto quando a contagem não vem, em vez de inventar um número', async () => {
+    // Cair para o tamanho da página seria pior do que falhar: com `limit(1)`
+    // isso dá 0 ou 1, então um título assistido 42 vezes anunciaria "1 vez" —
+    // indistinguível da verdade para quem lê.
     const { client } = fakeClient({ data: [eventoRow] });
-    const resumo = await getTitleWatchSummary(client, TITLE_ID);
 
-    expect(resumo.count).toBe(1);
+    const erro = await getTitleWatchSummary(client, TITLE_ID).catch((e: unknown) => e);
+    expect(erro).toBeInstanceOf(DatabaseError);
+    expect((erro as DatabaseError).code).toBe('indisponivel');
   });
 
   it('traduz o erro do PostgREST em erro tipado', async () => {

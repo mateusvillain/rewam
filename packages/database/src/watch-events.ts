@@ -233,26 +233,34 @@ export async function getTitleWatchSummary(
   const rows = (data ?? []) as RawRow[];
   const first = rows[0];
 
+  if (count === null) {
+    // `count` é anulável porque nem toda consulta o pede; esta pede. Nulo aqui
+    // significa que o `Content-Range` não veio, e é justamente quando o número
+    // é desconhecido.
+    //
+    // Cair para `rows.length` seria pior do que falhar: com `limit(1)` isso dá
+    // 0 ou 1, então um título assistido 42 vezes anunciaria "1 vez" — indistin-
+    // guível da verdade para quem lê. Um número errado que parece certo é o
+    // defeito que ninguém reporta.
+    throw new DatabaseError('indisponivel', 'O banco não informou quantas exibições existem.');
+  }
+
   return {
-    // `count` é anulável no tipo do cliente porque nem toda consulta o pede.
-    // Esta pede, mas cair para o tamanho da página em vez de assumir mantém a
-    // contagem coerente com o que de fato voltou.
-    count: count ?? rows.length,
+    count,
     latest: first ? toWatchEvent(first) : null,
   };
 }
 
 /**
- * Exibições de um título, em ordem cronológica crescente.
+ * Exibições de um título, da mais antiga para a mais recente.
  *
- * Crescente porque é a ordem em que `computeWatchPositions` numera exibição e
- * reassistida. Sem paginação: o histórico de um título é curto por natureza, e
- * a numeração precisa de todos os eventos para estar certa — uma página só
- * diria a posição dentro da página.
+ * Crescente porque é a ordem em que as exibições aconteceram, que é como se lê
+ * um histórico de consumo. Sem paginação: o histórico de um título é curto por
+ * natureza.
  *
- * Sem consumidor na interface desde que o produto dispensou o histórico; segue
- * aqui porque é contrato compartilhado com o MCP (E7), que lista exibições por
- * conversa. Quem quer só o número usa `getTitleWatchSummary` acima.
+ * Sem consumidor na interface desde que o produto dispensou o histórico (E4.4);
+ * segue aqui porque é contrato compartilhado com o MCP (E7), que lista exibições
+ * por conversa. Quem quer só o número usa `getTitleWatchSummary` acima.
  */
 export async function listWatchEventsByTitle(
   client: RewamSupabaseClient,
