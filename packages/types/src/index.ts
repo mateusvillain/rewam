@@ -120,10 +120,17 @@ export const updateWatchEventInputSchema = watchEventSchema
   .partial();
 export type UpdateWatchEventInput = z.infer<typeof updateWatchEventInputSchema>;
 
+/**
+ * Total assistido da conta.
+ *
+ * `unknownDurationEvents` existe para a tela poder dizer que o total está
+ * incompleto em vez de apresentá-lo como a verdade inteira: esses eventos ficam
+ * de fora da soma por decisão do briefing — não inventar número —, e sem
+ * declará-los o total pareceria simplesmente menor do que deveria.
+ */
 export const watchStatsSchema = z.object({
   totalMinutes: z.number().int().nonnegative(),
   totalEvents: z.number().int().nonnegative(),
-  rewatchEvents: z.number().int().nonnegative(),
   unknownDurationEvents: z.number().int().nonnegative(),
 });
 export type WatchStats = z.infer<typeof watchStatsSchema>;

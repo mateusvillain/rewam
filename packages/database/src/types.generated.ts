@@ -344,6 +344,14 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      watch_stats: {
+        Args: never
+        Returns: {
+          total_events: number
+          total_minutes: number
+          unknown_duration_events: number
+        }[]
+      }
     }
     Enums: {
       media_type: "movie" | "tv"

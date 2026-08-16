@@ -1,30 +1,97 @@
-import { colors, typography } from '@rewam/tokens';
-import { formLinkStyle, FormLinks, Screen } from '@rewam/ui';
-import { formatDuration } from '@rewam/utils';
-import { Link, Stack } from 'expo-router';
-import { StyleSheet, Text } from 'react-native';
+import { colors, spacing, typography } from '@rewam/tokens';
+import { Button, FormDescription, FormMessage, formLinkStyle, FormLinks, Screen } from '@rewam/ui';
+import { Link, Stack, useRouter } from 'expo-router';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
+import {
+  describeIncompleteTotal,
+  formatTotal,
+  hasNothingYet,
+  useWatchStats,
+} from '@/features/home';
+import { describeWatchError } from '@/features/watch';
+
+/**
+ * Tela de início.
+ *
+ * É o primeiro contato depois do login, e responde de imediato "quanto tempo eu
+ * já dediquei". O total vem somado do banco: somá-lo no cliente exigiria baixar
+ * todas as exibições da conta, e o custo cresceria com o uso inteiro
+ * justamente na tela que abre primeiro.
+ */
 export default function HomeScreen() {
-  // Placeholder até `watch_events` existir: a soma real vem do Supabase.
-  const totalMinutes = 0;
+  const stats = useWatchStats();
+  const router = useRouter();
 
   return (
     <Screen>
       <Stack.Screen options={{ title: 'Rewam' }} />
 
       <Text style={styles.title}>Rewam</Text>
-      <Text style={styles.body}>Tempo assistido: {formatDuration(totalMinutes)}</Text>
-      <Text style={styles.caption}>Histórico e estatísticas chegam nos próximos incrementos.</Text>
+
+      {stats.isPending ? (
+        <ActivityIndicator accessibilityLabel="Carregando seu total" style={styles.loading} />
+      ) : stats.isError ? (
+        <View style={styles.block}>
+          <FormMessage>{describeWatchError(stats.error).message}</FormMessage>
+          <Button
+            label={stats.isFetching ? 'Tentando…' : 'Tentar de novo'}
+            variant="ghost"
+            disabled={stats.isFetching}
+            onPress={() => void stats.refetch()}
+          />
+        </View>
+      ) : (
+        <Total
+          total={formatTotal(stats.data.totalMinutes)}
+          incomplete={describeIncompleteTotal(stats.data)}
+          isEmpty={hasNothingYet(stats.data)}
+        />
+      )}
+
+      {/* O atalho é botão, e não link de rodapé: registrar é o que a pessoa
+          veio fazer, e a busca é o único caminho até lá. */}
+      <Button label="Buscar filmes e séries" onPress={() => router.push('/busca')} />
 
       <FormLinks>
-        <Link href="/busca" style={formLinkStyle}>
-          Buscar filmes e séries
-        </Link>
         <Link href="/perfil" style={formLinkStyle}>
           Seu perfil
         </Link>
       </FormLinks>
     </Screen>
+  );
+}
+
+function Total({
+  total,
+  incomplete,
+  isEmpty,
+}: {
+  total: string;
+  incomplete: string | null;
+  isEmpty: boolean;
+}) {
+  if (isEmpty) {
+    return (
+      <View style={styles.block}>
+        <Text style={styles.label}>Tempo assistido</Text>
+        <Text style={styles.total}>{total}</Text>
+        <FormDescription>
+          Você ainda não registrou nada. Busque um filme e marque como assistido para o total
+          começar a contar.
+        </FormDescription>
+      </View>
+    );
+  }
+
+  return (
+    // Agrupado num anúncio só: lidos soltos, o rótulo e o número viram dois
+    // itens sem relação para quem usa leitor de tela.
+    <View accessible accessibilityLabel={`Tempo assistido: ${total}`} style={styles.block}>
+      <Text style={styles.label}>Tempo assistido</Text>
+      <Text style={styles.total}>{total}</Text>
+      {incomplete ? <FormMessage tone="neutro">{incomplete}</FormMessage> : null}
+    </View>
   );
 }
 
@@ -34,12 +101,20 @@ const styles = StyleSheet.create({
     fontSize: typography.display.fontSize,
     fontWeight: '700',
   },
-  body: {
-    color: colors.text,
-    fontSize: typography.body.fontSize,
+  block: {
+    gap: spacing.xs,
   },
-  caption: {
+  label: {
     color: colors.textMuted,
     fontSize: typography.caption.fontSize,
+    fontWeight: '600',
+  },
+  total: {
+    color: colors.text,
+    fontSize: typography.display.fontSize,
+    fontWeight: '700',
+  },
+  loading: {
+    alignSelf: 'flex-start',
   },
 });
