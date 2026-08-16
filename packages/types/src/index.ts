@@ -156,6 +156,15 @@ export type UpdateWatchEventInput = z.infer<typeof updateWatchEventInputSchema>;
  * de fora da soma por decisão do briefing — não inventar número —, e sem
  * declará-los o total pareceria simplesmente menor do que deveria.
  */
+/**
+ * `episodes.id` vindo da contagem por episódio.
+ *
+ * Validado à parte porque é a chave de um mapa que a tela usa para decidir o
+ * que já foi assistido: um id malformado viraria uma entrada que nunca casa
+ * com episódio nenhum, e o progresso ficaria em zero sem erro algum.
+ */
+export const episodeWatchCountIdSchema = z.uuid();
+
 export const watchStatsSchema = z.object({
   totalMinutes: z.number().int().nonnegative(),
   totalEvents: z.number().int().nonnegative(),

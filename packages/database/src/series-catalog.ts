@@ -1,6 +1,7 @@
 import {
   catalogEpisodeSchema,
   catalogSeasonSchema,
+  episodeWatchCountIdSchema,
   type CatalogEpisode,
   type CatalogSeason,
   type Episode,
@@ -105,4 +106,36 @@ export async function upsertEpisodes(
       // lista episódios em ordem. Ordenar aqui evita que cada consumidor lembre.
       .sort((a, b) => a.episodeNumber - b.episodeNumber)
   );
+}
+
+/**
+ * Quantas vezes cada episódio da série foi assistido.
+ *
+ * Devolve um mapa por `episodes.id`, com `season_number` junto — é ele que
+ * permite mostrar o progresso de uma temporada ainda fechada, sem carregar os
+ * episódios dela.
+ *
+ * Episódio ausente do mapa significa nunca assistido. Devolver zero para cada
+ * episódio existente exigiria conhecer todos eles, que é justamente o que o
+ * carregamento sob demanda evita.
+ */
+export type EpisodeWatchCount = {
+  episodeId: string;
+  seasonNumber: number;
+  watchCount: number;
+};
+
+export async function getEpisodeWatchCounts(
+  client: RewamSupabaseClient,
+  titleId: string,
+): Promise<EpisodeWatchCount[]> {
+  const { data, error } = await client.rpc('episode_watch_counts', { p_title_id: titleId });
+
+  throwIfError(error);
+
+  return requireRows(data, 'contagens de episódio').map((row) => ({
+    episodeId: episodeWatchCountIdSchema.parse(row.episode_id),
+    seasonNumber: Number(row.season_number),
+    watchCount: Number(row.watch_count),
+  }));
 }
