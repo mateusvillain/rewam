@@ -9,14 +9,17 @@ import { releaseYear, titleSubtitle } from '@/features/catalog';
 /**
  * Uma linha da lista de resultados.
  *
- * Série ainda não tem tela de detalhe — é a E5.2. Em vez de um link que
- * desaguaria em "não encontrado", a linha aparece sem toque e diz o motivo: o
- * resultado continua visível, que é o que o filtro entre filmes e séries
- * promete, sem prometer uma navegação que não existe.
+ * Filme e série navegam para telas diferentes porque o alvo do registro é
+ * diferente: no filme é o título, na série é o episódio. A rota carrega essa
+ * escolha, e é por isso que o caminho é decidido aqui e não na tela de destino.
+ *
+ * Até a E5.2 a linha de série não era tocável, e com o filtro "Séries" ativo
+ * nenhum item da lista respondia ao toque — um beco sem saída que esta tela
+ * fechou.
  */
 export function SearchResultRow({ result }: { result: CatalogSearchResult }) {
   const subtitle = titleSubtitle(releaseYear(result.releaseDate), result.mediaType);
-  const isMovie = result.mediaType === 'movie';
+  const href = result.mediaType === 'movie' ? `/filme/${result.tmdbId}` : `/serie/${result.tmdbId}`;
 
   const content = (
     <View style={styles.row}>
@@ -27,24 +30,12 @@ export function SearchResultRow({ result }: { result: CatalogSearchResult }) {
           {result.title}
         </Text>
         <Text style={styles.subtitle}>{subtitle}</Text>
-        {isMovie ? null : <Text style={styles.soon}>Detalhe de série chega em breve</Text>}
       </View>
     </View>
   );
 
-  if (!isMovie) {
-    return (
-      <View
-        accessible
-        accessibilityLabel={`${result.title}. ${subtitle}. Detalhe ainda não disponível.`}
-      >
-        {content}
-      </View>
-    );
-  }
-
   return (
-    <Link href={`/filme/${result.tmdbId}`} asChild>
+    <Link href={href} asChild>
       <Pressable
         accessibilityRole="link"
         accessibilityLabel={`${result.title}. ${subtitle}`}
@@ -80,10 +71,5 @@ const styles = StyleSheet.create({
   subtitle: {
     color: colors.textMuted,
     fontSize: typography.caption.fontSize,
-  },
-  soon: {
-    color: colors.textMuted,
-    fontSize: typography.caption.fontSize,
-    fontStyle: 'italic',
   },
 });

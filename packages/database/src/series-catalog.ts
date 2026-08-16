@@ -1,6 +1,7 @@
 import {
   catalogEpisodeSchema,
   catalogSeasonSchema,
+  episodeWatchCountSchema,
   type CatalogEpisode,
   type CatalogSeason,
   type Episode,
@@ -10,8 +11,9 @@ import {
 import type { RewamSupabaseClient } from './client';
 import { throwIfError } from './errors';
 import { requireRows, toEpisode, toSeason } from './rows';
+import type { EpisodeWatchCount } from '@rewam/types';
 
-export type { Episode, Season };
+export type { Episode, EpisodeWatchCount, Season };
 
 /**
  * Cópia local do catálogo de uma série: temporadas e episódios.
@@ -59,7 +61,7 @@ export async function upsertSeasons(
 
   throwIfError(error);
 
-  return requireRows(data, 'temporadas').map(toSeason);
+  return requireRows(data, 'as temporadas gravadas').map(toSeason);
 }
 
 /**
@@ -99,10 +101,38 @@ export async function upsertEpisodes(
   throwIfError(error);
 
   return (
-    requireRows(data, 'episódios')
+    requireRows(data, 'os episódios gravados')
       .map(toEpisode)
       // A ordem de retorno de um `insert ... returning` não é garantida, e a tela
       // lista episódios em ordem. Ordenar aqui evita que cada consumidor lembre.
       .sort((a, b) => a.episodeNumber - b.episodeNumber)
+  );
+}
+
+/**
+ * Quantas vezes cada episódio da série foi assistido.
+ *
+ * Uma linha por episódio com ao menos uma exibição, com `seasonNumber` junto —
+ * é ele que permite mostrar o progresso de uma temporada ainda fechada, sem
+ * carregar os episódios dela.
+ *
+ * Episódio ausente da lista significa nunca assistido. Devolver zero para cada
+ * episódio existente exigiria conhecer todos eles, que é justamente o que o
+ * carregamento sob demanda evita.
+ */
+export async function getEpisodeWatchCounts(
+  client: RewamSupabaseClient,
+  titleId: string,
+): Promise<EpisodeWatchCount[]> {
+  const { data, error } = await client.rpc('episode_watch_counts', { p_title_id: titleId });
+
+  throwIfError(error);
+
+  return requireRows(data, 'as contagens de exibição').map((row) =>
+    episodeWatchCountSchema.parse({
+      episodeId: row.episode_id,
+      seasonNumber: Number(row.season_number),
+      watchCount: Number(row.watch_count),
+    }),
   );
 }

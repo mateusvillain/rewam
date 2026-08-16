@@ -83,7 +83,7 @@ export function toEpisode(row: Record<string, unknown>): Episode {
  */
 export function requireRows(data: unknown, what: string): RawRow[] {
   if (!Array.isArray(data)) {
-    throw new DatabaseError('consulta-invalida', `O banco não devolveu as ${what} gravadas.`);
+    throw new DatabaseError('consulta-invalida', `O banco não devolveu ${what}.`);
   }
 
   // Cada elemento também: sem isto, uma linha que não seja objeto sairia como

@@ -259,6 +259,14 @@ export type Database = {
     }
     Functions: {
       delete_own_account: { Args: never; Returns: undefined }
+      episode_watch_counts: {
+        Args: { p_title_id: string }
+        Returns: {
+          episode_id: string
+          season_number: number
+          watch_count: number
+        }[]
+      }
       upsert_episode: {
         Args: {
           p_air_date?: string

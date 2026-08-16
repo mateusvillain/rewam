@@ -1,4 +1,6 @@
+import { DatabaseError, canRetry } from '@rewam/database';
 import { TmdbError } from '@rewam/tmdb';
+import type { MediaType } from '@rewam/types';
 
 export type CatalogErrorPresentation = {
   title: string;
@@ -15,7 +17,17 @@ export type CatalogErrorPresentation = {
  * oferecer o botão faz a pessoa repetir algo que nunca vai funcionar. O
  * `TmdbError` já carrega o status justamente para permitir esta distinção.
  */
-export function describeCatalogError(error: unknown): CatalogErrorPresentation {
+export function describeCatalogError(
+  error: unknown,
+  mediaType: MediaType = 'movie',
+): CatalogErrorPresentation {
+  // O que falha ao abrir uma temporada não é só o TMDB: a mesma consulta grava
+  // os episódios no banco. Sem este ramo, uma falha de gravação apareceria
+  // como "resposta inesperada do TMDB", mandando procurar no lugar errado.
+  if (error instanceof DatabaseError) {
+    return { title: 'Não foi possível guardar', detail: error.message, canRetry: canRetry(error) };
+  }
+
   if (error instanceof TmdbError) {
     // Status 0 é o combinado do cliente para "não houve resposta".
     if (error.status === 0) {
@@ -27,11 +39,21 @@ export function describeCatalogError(error: unknown): CatalogErrorPresentation {
     }
 
     if (error.status === 404) {
-      return {
-        title: 'Filme não encontrado',
-        detail: 'O TMDB não tem nenhum filme com este identificador.',
-        canRetry: false,
-      };
+      // O texto acompanha o tipo de mídia: dizer "filme" numa tela de série
+      // manda a pessoa procurar o problema no lugar errado. As frases vêm
+      // inteiras, e não montadas por concatenação, porque em português o
+      // gênero atravessa a frase — "nenhuma filme" é o que sai de um template.
+      return mediaType === 'movie'
+        ? {
+            title: 'Filme não encontrado',
+            detail: 'O TMDB não tem nenhum filme com este identificador.',
+            canRetry: false,
+          }
+        : {
+            title: 'Série não encontrada',
+            detail: 'O TMDB não tem nenhuma série com este identificador.',
+            canRetry: false,
+          };
     }
 
     if (error.status === 401 || error.status === 403) {

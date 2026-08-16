@@ -163,6 +163,21 @@ export const watchStatsSchema = z.object({
 });
 export type WatchStats = z.infer<typeof watchStatsSchema>;
 
+/**
+ * Exibições contadas por episódio.
+ *
+ * Validada por inteiro, e não só o id: é a linha que a tela usa para decidir o
+ * que já foi assistido e para somar o progresso. Um id malformado viraria uma
+ * entrada que nunca casa com episódio nenhum, e o progresso ficaria errado sem
+ * erro algum — que é o defeito que não se reporta porque parece plausível.
+ */
+export const episodeWatchCountSchema = z.object({
+  episodeId: z.uuid(),
+  seasonNumber: z.number().int().nonnegative(),
+  watchCount: z.number().int().positive(),
+});
+export type EpisodeWatchCount = z.infer<typeof episodeWatchCountSchema>;
+
 // ---------------------------------------------------------------------------
 // Autenticação
 // ---------------------------------------------------------------------------
