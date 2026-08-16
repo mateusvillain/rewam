@@ -9,6 +9,7 @@ export { SeasonSection } from './SeasonSection';
 // temporada refazer a conta a cada render — inclusive fechada.
 export {
   countRegularSeasons,
+  describeEpisodeCount,
   formatProgress,
   formatSeasonCount,
   indexByEpisode,

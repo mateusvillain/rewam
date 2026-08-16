@@ -263,6 +263,7 @@ export type Database = {
         Args: { p_title_id: string }
         Returns: {
           episode_id: string
+          latest_event_id: string
           season_number: number
           watch_count: number
         }[]

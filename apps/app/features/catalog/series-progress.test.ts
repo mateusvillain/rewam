@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   countRegularSeasons,
+  describeEpisodeCount,
   formatProgress,
   formatSeasonCount,
   indexByEpisode,
@@ -16,7 +17,12 @@ function season(seasonNumber: number, episodeCount: number | null): CatalogSeaso
 }
 
 function count(episodeId: string, seasonNumber: number, watchCount = 1): EpisodeWatchCount {
-  return { episodeId, seasonNumber, watchCount };
+  return {
+    episodeId,
+    seasonNumber,
+    watchCount,
+    latestEventId: `dddddddd-0000-4000-8000-00000000000${episodeId.charCodeAt(0) % 10}`,
+  };
 }
 
 describe('seasonProgress', () => {
@@ -106,6 +112,21 @@ describe('countRegularSeasons', () => {
   });
 });
 
+describe('describeEpisodeCount', () => {
+  it('zero não é um placar', () => {
+    // "assistido 0 vezes" trata como número o que é estado.
+    expect(describeEpisodeCount(0)).toBe('não assistido');
+  });
+
+  it('concorda no singular', () => {
+    expect(describeEpisodeCount(1)).toBe('assistido 1 vez');
+  });
+
+  it('usa o plural a partir de duas', () => {
+    expect(describeEpisodeCount(3)).toBe('assistido 3 vezes');
+  });
+});
+
 describe('formatSeasonCount', () => {
   it('concorda no singular', () => {
     expect(formatSeasonCount(1)).toBe('1 temporada');
@@ -132,7 +153,10 @@ describe('indexByEpisode', () => {
   it('permite a lista decidir item a item', () => {
     const index = indexByEpisode([count('a', 1, 2), count('b', 1, 1)]);
 
-    expect(index.get('a')).toBe(2);
+    expect(index.get('a')?.watchCount).toBe(2);
+    // O id do último evento vem junto: sem ele, desfazer custaria uma consulta
+    // por toque num dado que já chegou.
+    expect(index.get('a')?.latestEventId).toBeDefined();
     // Ausente significa nunca assistido: devolver zero para cada episódio
     // exigiria conhecer todos, que é o que o carregamento sob demanda evita.
     expect(index.get('c')).toBeUndefined();
