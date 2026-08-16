@@ -1,8 +1,25 @@
-import type { CatalogSearchResult, CatalogTitleDetail, MediaType } from '@rewam/types';
+import type {
+  CatalogEpisode,
+  CatalogSearchResult,
+  CatalogSeriesDetail,
+  CatalogTitleDetail,
+  MediaType,
+} from '@rewam/types';
 
 import type { TmdbClient } from './client';
-import { normalizeMovieDetail, normalizeSearchResults, normalizeTvDetail } from './normalize';
-import { tmdbMovieDetailSchema, tmdbSearchResponseSchema, tmdbTvDetailSchema } from './payloads';
+import {
+  normalizeEpisode,
+  normalizeMovieDetail,
+  normalizeSearchResults,
+  normalizeSeriesDetail,
+  normalizeTvDetail,
+} from './normalize';
+import {
+  tmdbMovieDetailSchema,
+  tmdbSearchResponseSchema,
+  tmdbSeasonDetailSchema,
+  tmdbTvDetailSchema,
+} from './payloads';
 
 /**
  * As chamadas concretas do TMDB, já normalizadas.
@@ -103,6 +120,45 @@ export async function getMovieDetail(
 
 export async function getTvDetail(client: TmdbClient, tmdbId: number): Promise<CatalogTitleDetail> {
   return normalizeTvDetail(tmdbTvDetailSchema.parse(await client.request(`/tv/${tmdbId}`)));
+}
+
+/**
+ * Detalhe de série, já com as temporadas.
+ *
+ * Mesma requisição de `getTvDetail`: as temporadas vêm dentro de `/tv/{id}`.
+ * Uma função separada em vez de um campo opcional em `CatalogTitleDetail`
+ * porque filme não tem temporada, e um campo que só existe metade das vezes
+ * vira `?.` em toda a base.
+ */
+export async function getSeriesDetail(
+  client: TmdbClient,
+  tmdbId: number,
+): Promise<CatalogSeriesDetail> {
+  return normalizeSeriesDetail(tmdbTvDetailSchema.parse(await client.request(`/tv/${tmdbId}`)));
+}
+
+/**
+ * Episódios de uma temporada.
+ *
+ * Pedido só quando a pessoa abre a temporada: o briefing proíbe baixar o
+ * catálogo inteiro, e uma série longa tem centenas de episódios que ninguém
+ * pediu para ver.
+ */
+export async function getSeasonEpisodes(
+  client: TmdbClient,
+  tmdbId: number,
+  seasonNumber: number,
+): Promise<CatalogEpisode[]> {
+  const raw = tmdbSeasonDetailSchema.parse(
+    await client.request(`/tv/${tmdbId}/season/${seasonNumber}`),
+  );
+
+  // Ordena por número do episódio: o TMDB costuma devolver em ordem, mas a
+  // lista da tela e a soma do lote dependem disso, e depender de um "costuma"
+  // é como a temporada aparece embaralhada num título qualquer.
+  return (raw.episodes ?? [])
+    .map(normalizeEpisode)
+    .sort((a, b) => a.episodeNumber - b.episodeNumber);
 }
 
 /**

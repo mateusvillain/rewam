@@ -2,12 +2,20 @@ import {
   mediaTypeSchema,
   type CatalogEpisode,
   type CatalogSearchResult,
+  type CatalogSeason,
+  type CatalogSeriesDetail,
   type CatalogTitleDetail,
   type MediaType,
 } from '@rewam/types';
 import { isValidDuration } from '@rewam/utils';
 
-import type { TmdbEpisode, TmdbMovieDetail, TmdbSearchResult, TmdbTvDetail } from './payloads';
+import type {
+  TmdbEpisode,
+  TmdbMovieDetail,
+  TmdbSearchResult,
+  TmdbSeasonSummary,
+  TmdbTvDetail,
+} from './payloads';
 
 /**
  * Traduz o formato do TMDB para uma forma única, igual para filme e série.
@@ -99,6 +107,11 @@ export function normalizeMovieDetail(raw: TmdbMovieDetail): CatalogTitleDetail {
   };
 }
 
+/** Detalhe de série com as temporadas que vieram na mesma resposta. */
+export function normalizeSeriesDetail(raw: TmdbTvDetail): CatalogSeriesDetail {
+  return { ...normalizeTvDetail(raw), seasons: normalizeSeasons(raw.seasons) };
+}
+
 export function normalizeTvDetail(raw: TmdbTvDetail): CatalogTitleDetail {
   return {
     tmdbId: raw.id,
@@ -110,6 +123,31 @@ export function normalizeTvDetail(raw: TmdbTvDetail): CatalogTitleDetail {
     runtimeMinutes: toEpisodeRuntimeMinutes(raw.episode_run_time),
     overview: toNullableText(raw.overview),
   };
+}
+
+/**
+ * Temporada do detalhe da série.
+ *
+ * `episode_count` vira `null` quando o TMDB não informa, e não zero: zero
+ * afirmaria que a temporada não tem episódio nenhum, e a tela mostraria uma
+ * temporada vazia onde o que falta é o dado.
+ */
+export function normalizeSeason(raw: TmdbSeasonSummary): CatalogSeason {
+  return {
+    seasonNumber: raw.season_number,
+    name: toNullableText(raw.name),
+    episodeCount:
+      typeof raw.episode_count === 'number' && Number.isFinite(raw.episode_count)
+        ? Math.max(0, Math.trunc(raw.episode_count))
+        : null,
+    posterPath: toNullableText(raw.poster_path),
+  };
+}
+
+export function normalizeSeasons(raw: TmdbTvDetail['seasons']): CatalogSeason[] {
+  // Ordena por número: o TMDB costuma devolver a temporada 0 (especiais)
+  // primeiro, e a tela quer a ordem em que se assiste.
+  return (raw ?? []).map(normalizeSeason).sort((a, b) => a.seasonNumber - b.seasonNumber);
 }
 
 export function normalizeEpisode(raw: TmdbEpisode): CatalogEpisode {

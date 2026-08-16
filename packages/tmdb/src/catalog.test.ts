@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { getMovieDetail, getTitleDetail, getTvDetail, searchCatalog } from './catalog';
+import {
+  getMovieDetail,
+  getSeasonEpisodes,
+  getSeriesDetail,
+  getTitleDetail,
+  getTvDetail,
+  searchCatalog,
+} from './catalog';
 import { createTmdbClient, TmdbError } from './client';
 
 /** `fetch` falso: nenhum teste aqui toca a rede. */
@@ -232,5 +239,109 @@ describe('contrato do cliente', () => {
     const [, init] = vi.mocked(fetchImpl).mock.calls[0]!;
     expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer token-de-teste');
     expect(requestedUrl(fetchImpl).searchParams.get('language')).toBe('pt-BR');
+  });
+});
+
+describe('getSeriesDetail', () => {
+  const tvBody = {
+    id: 1399,
+    name: 'A Guerra dos Tronos',
+    original_name: 'Game of Thrones',
+    first_air_date: '2011-04-17',
+    episode_run_time: [60],
+    seasons: [
+      { season_number: 1, name: 'Temporada 1', episode_count: 10, poster_path: '/s1.jpg' },
+      { season_number: 0, name: 'Especiais', episode_count: null, poster_path: null },
+    ],
+  };
+
+  it('traz as temporadas na mesma requisição do detalhe', async () => {
+    const { client, fetchImpl } = clientRespondingWith(tvBody);
+    const detail = await getSeriesDetail(client, 1399);
+
+    // Pedir as temporadas à parte seria uma segunda ida à rede por um dado que
+    // já chegou nesta resposta.
+    expect(vi.mocked(fetchImpl).mock.calls).toHaveLength(1);
+    expect(requestedUrl(fetchImpl).pathname).toBe('/3/tv/1399');
+    expect(detail.title).toBe('A Guerra dos Tronos');
+  });
+
+  it('ordena por número, com os especiais antes da primeira temporada', async () => {
+    const { client } = clientRespondingWith(tvBody);
+    const { seasons } = await getSeriesDetail(client, 1399);
+
+    // O TMDB não garante ordem, e a tela quer a ordem em que se assiste.
+    expect(seasons.map((s) => s.seasonNumber)).toEqual([0, 1]);
+  });
+
+  it('contagem ausente vira nulo, e não zero', async () => {
+    const { client } = clientRespondingWith(tvBody);
+    const { seasons } = await getSeriesDetail(client, 1399);
+
+    // Zero afirmaria que a temporada não tem episódio nenhum; o que falta é o
+    // dado, e a tela precisa poder dizer isso.
+    expect(seasons[0]).toMatchObject({ seasonNumber: 0, episodeCount: null });
+    expect(seasons[1]).toMatchObject({ seasonNumber: 1, episodeCount: 10 });
+  });
+
+  it('série sem temporadas listadas continua exibível', async () => {
+    const { client } = clientRespondingWith({ ...tvBody, seasons: undefined });
+
+    await expect(getSeriesDetail(client, 1399)).resolves.toMatchObject({ seasons: [] });
+  });
+});
+
+describe('getSeasonEpisodes', () => {
+  const seasonBody = {
+    episodes: [
+      { id: 63057, season_number: 1, episode_number: 2, name: 'O Caminho do Rei', runtime: 56 },
+      {
+        id: 63056,
+        season_number: 1,
+        episode_number: 1,
+        name: 'O Inverno Está Chegando',
+        runtime: 62,
+      },
+      { id: 63058, season_number: 1, episode_number: 3, name: 'Lorde Snow', runtime: null },
+    ],
+  };
+
+  it('pede só a temporada aberta', async () => {
+    const { client, fetchImpl } = clientRespondingWith(seasonBody);
+    await getSeasonEpisodes(client, 1399, 1);
+
+    // O briefing proíbe baixar o catálogo inteiro: a rota carrega uma
+    // temporada, não a série.
+    expect(requestedUrl(fetchImpl).pathname).toBe('/3/tv/1399/season/1');
+  });
+
+  it('devolve em ordem de episódio', async () => {
+    const { client } = clientRespondingWith(seasonBody);
+    const episodes = await getSeasonEpisodes(client, 1399, 1);
+
+    // A resposta veio 2, 1, 3. A lista da tela e a soma do lote dependem da
+    // ordem, e depender de o TMDB "costumar" ordenar é como a temporada
+    // aparece embaralhada num título qualquer.
+    expect(episodes.map((e) => e.episodeNumber)).toEqual([1, 2, 3]);
+  });
+
+  it('duração ausente vira nulo', async () => {
+    const { client } = clientRespondingWith(seasonBody);
+    const episodes = await getSeasonEpisodes(client, 1399, 1);
+
+    expect(episodes[2]).toMatchObject({ episodeNumber: 3, runtimeMinutes: null });
+  });
+
+  it('temporada sem episódios não quebra', async () => {
+    const { client } = clientRespondingWith({});
+
+    await expect(getSeasonEpisodes(client, 1399, 99)).resolves.toEqual([]);
+  });
+
+  it('temporada 0 é endereço válido: o TMDB usa para especiais', async () => {
+    const { client, fetchImpl } = clientRespondingWith(seasonBody);
+    await getSeasonEpisodes(client, 1399, 0);
+
+    expect(requestedUrl(fetchImpl).pathname).toBe('/3/tv/1399/season/0');
   });
 });

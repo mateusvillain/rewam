@@ -16,8 +16,11 @@ insert into auth.users (id, instance_id, aud, role, email, raw_user_meta_data)
 values ('11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'a@example.com', '{"name": "Pessoa A"}'::jsonb),
        ('22222222-2222-2222-2222-222222222222', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'b@example.com', '{"name": "Pessoa B"}'::jsonb);
 
+-- `tmdb_id` alto de propósito: um id real colidiria com o catálogo que o app
+-- grava ao abrir um filme, e o seed falharia por UNIQUE conforme o banco local
+-- fosse usado — verde na CI, vermelha na máquina de quem desenvolve.
 insert into public.titles (id, tmdb_id, media_type, title, runtime_minutes)
-values ('aaaaaaaa-0000-0000-0000-000000000001', 27205, 'movie', 'A Origem', 148);
+values ('aaaaaaaa-0000-0000-0000-000000000001', 99900003, 'movie', 'A Origem', 148);
 
 insert into public.watch_events (id, user_id, title_id, duration_minutes)
 values ('dddddddd-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'aaaaaaaa-0000-0000-0000-000000000001', 148),
@@ -37,8 +40,11 @@ select pg_temp.expect_count('A enxerga apenas as próprias exibições',
 select pg_temp.expect_count('A não enxerga a exibição de B',
   $$select count(*) from public.watch_events where id = 'dddddddd-0000-0000-0000-000000000002'$$, 0);
 
+-- Filtra pela linha que esta suíte semeou, em vez de contar a tabela inteira:
+-- contar tudo transforma "o RLS deixa ler catálogo" em "o banco está vazio", e
+-- a asserção passa a falhar por uso normal do app.
 select pg_temp.expect_count('A lê o catálogo',
-  'select count(*) from public.titles', 1);
+  $$select count(*) from public.titles where id = 'aaaaaaaa-0000-0000-0000-000000000001'$$, 1);
 
 -- Sem linha visível, o UPDATE/DELETE alheio não falha: afeta zero linhas.
 update public.watch_events set duration_minutes = 1

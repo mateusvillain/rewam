@@ -1,4 +1,11 @@
-import { episodeSchema, titleSchema, type Episode, type Title } from '@rewam/types';
+import {
+  episodeSchema,
+  seasonSchema,
+  titleSchema,
+  type Episode,
+  type Season,
+  type Title,
+} from '@rewam/types';
 
 import { DatabaseError } from './errors';
 
@@ -63,5 +70,19 @@ export function toEpisode(row: Record<string, unknown>): Episode {
     name: row.name,
     runtimeMinutes: row.runtime_minutes,
     airDate: row.air_date,
+  });
+}
+
+export function toSeason(row: RawRow): Season {
+  return seasonSchema.parse({
+    id: row.id,
+    titleId: row.title_id,
+    // A coluna se chama `tmdb_season_number` porque o número vem do TMDB e é
+    // ele que identifica a temporada; do lado do domínio o prefixo só ecoaria
+    // o fornecedor.
+    seasonNumber: row.tmdb_season_number,
+    name: row.name,
+    episodeCount: row.episode_count,
+    posterPath: row.poster_path,
   });
 }

@@ -64,6 +64,21 @@ export const tmdbMovieDetailSchema = z.object({
 });
 export type TmdbMovieDetail = z.infer<typeof tmdbMovieDetailSchema>;
 
+/**
+ * Temporada como ela aparece dentro do detalhe da série.
+ *
+ * É um resumo: traz a contagem de episódios, mas não os episódios. Eles vêm de
+ * `/tv/{id}/season/{n}`, pedido só quando a pessoa abre a temporada — baixar
+ * todos de uma vez é o que o briefing proíbe.
+ */
+export const tmdbSeasonSummarySchema = z.object({
+  season_number: z.number().int().nonnegative(),
+  name: looseText,
+  episode_count: z.number().nullish(),
+  poster_path: looseText,
+});
+export type TmdbSeasonSummary = z.infer<typeof tmdbSeasonSummarySchema>;
+
 export const tmdbTvDetailSchema = z.object({
   id: tmdbId,
   name: requiredTitle,
@@ -73,6 +88,9 @@ export const tmdbTvDetailSchema = z.object({
   overview: looseText,
   /** Série não tem duração única: o TMDB devolve uma lista de durações típicas. */
   episode_run_time: z.array(z.number()).nullish(),
+  // Ausente em algumas respostas do TMDB, e o padrão é lista vazia em vez de
+  // erro: uma série sem temporadas listadas ainda é uma série exibível.
+  seasons: z.array(tmdbSeasonSummarySchema).nullish(),
 });
 export type TmdbTvDetail = z.infer<typeof tmdbTvDetailSchema>;
 
@@ -85,3 +103,9 @@ export const tmdbEpisodeSchema = z.object({
   air_date: looseText,
 });
 export type TmdbEpisode = z.infer<typeof tmdbEpisodeSchema>;
+
+/** Resposta de `/tv/{id}/season/{n}`. Só os episódios interessam. */
+export const tmdbSeasonDetailSchema = z.object({
+  episodes: z.array(tmdbEpisodeSchema).nullish(),
+});
+export type TmdbSeasonDetail = z.infer<typeof tmdbSeasonDetailSchema>;
