@@ -65,6 +65,16 @@ export type CatalogEpisode = z.infer<typeof catalogEpisodeSchema>;
  */
 export const timestampSchema = z.iso.datetime({ offset: true });
 
+/**
+ * Espelha `watch_events_notes_length_check`.
+ *
+ * Exportado para que o formulário derive daqui em vez de repetir o número: com
+ * a constante solta em cada lugar, mudar o limite no banco deixaria a tela
+ * aceitando um texto que a gravação recusaria — e a pessoa descobriria isso
+ * depois de escrever tudo.
+ */
+export const NOTES_MAX_LENGTH = 500;
+
 export const watchEventSchema = z.object({
   id: z.uuid(),
   userId: z.uuid(),
@@ -72,7 +82,7 @@ export const watchEventSchema = z.object({
   episodeId: z.uuid().nullable(),
   watchedAt: timestampSchema,
   durationMinutes: z.number().int().positive().nullable(),
-  notes: z.string().max(500).nullable(),
+  notes: z.string().max(NOTES_MAX_LENGTH).nullable(),
 });
 export type WatchEvent = z.infer<typeof watchEventSchema>;
 
