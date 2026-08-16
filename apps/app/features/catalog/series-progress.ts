@@ -63,6 +63,25 @@ export function seriesProgress(
 }
 
 /**
+ * Quantas temporadas a série tem, para efeito de contagem na tela.
+ *
+ * Os especiais (temporada 0) ficam de fora: o próprio TMDB não os inclui em
+ * `number_of_seasons`, e "6 temporadas" para uma série de 5 mais os extras é
+ * simplesmente errado. Eles continuam contando no *progresso*, porque um
+ * especial assistido é um episódio assistido — as duas perguntas são
+ * diferentes e a mesma lista não responde às duas.
+ */
+export function countRegularSeasons(seasons: ReadonlyArray<CatalogSeason>): number {
+  return seasons.filter((season) => season.seasonNumber > 0).length;
+}
+
+/** Contagem de temporadas por extenso, com o singular concordando. */
+export function formatSeasonCount(total: number): string {
+  if (total <= 0) return 'Sem temporadas listadas';
+  return total === 1 ? '1 temporada' : `${total} temporadas`;
+}
+
+/**
  * O progresso dito na tela.
  *
  * Sem total conhecido, diz só o que foi assistido: "3 episódios assistidos" é
@@ -75,16 +94,10 @@ export function formatProgress(progress: Progress): string {
       : `${progress.watched} episódios assistidos`;
   }
 
-  return `${progress.watched} de ${progress.total}`;
-}
-
-/** Fração de 0 a 1 para a barra de progresso, ou `null` sem total conhecido. */
-export function progressRatio(progress: Progress): number | null {
-  if (progress.total === null || progress.total <= 0) return null;
-
-  // Limitado a 1: o TMDB às vezes informa menos episódios do que a temporada
-  // tem, e uma barra passando da borda pareceria defeito da tela.
-  return Math.min(progress.watched / progress.total, 1);
+  // Limitado ao total: um episódio assistido cuja temporada o TMDB deixou de
+  // listar ainda conta como assistido, e sem o limite a tela diria "63 de 62".
+  // O passado da pessoa não muda quando o catálogo muda.
+  return `${Math.min(progress.watched, progress.total)} de ${progress.total}`;
 }
 
 /** Índice das contagens por `episodes.id`, para a lista decidir item a item. */

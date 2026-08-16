@@ -7,7 +7,8 @@ import {
 } from '@rewam/database';
 import { getSeasonEpisodes, getSeriesDetail } from '@rewam/tmdb';
 import type { CatalogSeriesDetail } from '@rewam/types';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { useEffect, useRef } from 'react';
 
 import { supabase } from '@/lib/supabase';
 import { tmdb } from '@/lib/tmdb';
@@ -86,6 +87,10 @@ export function useSeasonEpisodes(
       return upsertEpisodes(supabase, titleId, fromCatalog);
     },
     enabled: isOpen && titleId !== null && tmdbId !== null,
+    // O catálogo de uma temporada muda em escala de meses, não de sessão, e
+    // cada refetch aqui é uma gravação: sem isto, voltar o foco ao app
+    // regravaria a temporada inteira.
+    staleTime: Infinity,
   });
 }
 
@@ -109,17 +114,37 @@ export function useEpisodeWatchCounts(titleId: string | null) {
  * deixa o vínculo nulo se ela ainda não existir. Nada quebra sem isso — o
  * episódio não depende da temporada para ser identificado —, mas o vínculo
  * ficaria pela metade conforme a ordem em que as telas fossem abertas.
+ *
+ * `useMutation`, e não `useQuery`: isto é escrita. Como consulta, o TanStack
+ * repetiria a gravação sozinho a cada erro e a cada volta de foco, e a falha
+ * não teria onde aparecer — foi assim que a primeira versão saiu, e é a mesma
+ * distinção que `use-title.ts` já fazia para o upsert de título.
+ *
+ * A guarda por `titleId` evita regravar a cada render, e é limpa quando a
+ * gravação falha: sem isso um erro de rede passageiro queimaria a única
+ * tentativa, e nenhuma temporada seria ligada enquanto a tela estivesse aberta.
  */
 export function usePersistSeasons(titleId: string | null, detail: CatalogSeriesDetail | undefined) {
-  return useQuery({
-    queryKey: ['persist-seasons', titleId ?? 'none'],
-    queryFn: async () => {
-      if (titleId === null || !detail) throw new Error('Temporadas pedidas sem título gravado.');
-      return upsertSeasons(supabase, titleId, detail.seasons);
-    },
-    enabled: titleId !== null && detail !== undefined,
-    // Gravar de novo a cada foco não traria nada: o catálogo de temporadas de
-    // uma série muda em escala de meses, não de sessão.
-    staleTime: Infinity,
+  const { mutate, isError, isPending } = useMutation({
+    mutationFn: (input: { titleId: string; seasons: CatalogSeriesDetail['seasons'] }) =>
+      upsertSeasons(supabase, input.titleId, input.seasons),
   });
+  const persisted = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (titleId === null || !detail) return;
+    if (persisted.current === titleId) return;
+
+    persisted.current = titleId;
+    mutate(
+      { titleId, seasons: detail.seasons },
+      {
+        onError: () => {
+          if (persisted.current === titleId) persisted.current = null;
+        },
+      },
+    );
+  }, [titleId, detail, mutate]);
+
+  return { seasonsFailed: isError, isSavingSeasons: isPending };
 }

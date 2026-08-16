@@ -3,9 +3,10 @@ import type { CatalogSeason } from '@rewam/types';
 import { describe, expect, it } from 'vitest';
 
 import {
+  countRegularSeasons,
   formatProgress,
+  formatSeasonCount,
   indexByEpisode,
-  progressRatio,
   seasonProgress,
   seriesProgress,
 } from './series-progress';
@@ -85,20 +86,45 @@ describe('formatProgress', () => {
   });
 });
 
-describe('progressRatio', () => {
-  it('devolve a fração da barra', () => {
-    expect(progressRatio({ watched: 5, total: 10 })).toBe(0.5);
+describe('countRegularSeasons', () => {
+  it('não conta os especiais', () => {
+    // O próprio TMDB exclui a temporada 0 de `number_of_seasons`; dizer "6
+    // temporadas" para uma série de 5 mais os extras é simplesmente errado.
+    expect(countRegularSeasons([season(0, 3), season(1, 10), season(2, 8)])).toBe(2);
   });
 
-  it('sem total, não há barra', () => {
-    expect(progressRatio({ watched: 5, total: null })).toBeNull();
-    expect(progressRatio({ watched: 0, total: 0 })).toBeNull();
+  it('série só com especiais não tem temporada para contar', () => {
+    expect(countRegularSeasons([season(0, 3)])).toBe(0);
   });
 
-  it('não passa de 1 quando o catálogo informa menos do que se assistiu', () => {
-    // O TMDB às vezes lista menos episódios do que a temporada tem, e uma barra
-    // passando da borda pareceria defeito da tela.
-    expect(progressRatio({ watched: 12, total: 10 })).toBe(1);
+  it('mas os especiais continuam contando no progresso', () => {
+    // As duas perguntas são diferentes, e a mesma lista não responde às duas:
+    // um especial assistido é um episódio assistido.
+    const seasons = [season(0, 3), season(1, 10)];
+    expect(seriesProgress(seasons, [count('a', 0)]).watched).toBe(1);
+    expect(countRegularSeasons(seasons)).toBe(1);
+  });
+});
+
+describe('formatSeasonCount', () => {
+  it('concorda no singular', () => {
+    expect(formatSeasonCount(1)).toBe('1 temporada');
+  });
+
+  it('usa o plural a partir de duas', () => {
+    expect(formatSeasonCount(3)).toBe('3 temporadas');
+  });
+
+  it('sem temporada, diz isso em vez de "0 temporadas"', () => {
+    expect(formatSeasonCount(0)).toBe('Sem temporadas listadas');
+  });
+});
+
+describe('formatProgress, com o catálogo encolhendo', () => {
+  it('não passa do total quando uma temporada some do catálogo', () => {
+    // O passado da pessoa não muda quando o TMDB muda: sem o limite, a tela
+    // diria "63 de 62".
+    expect(formatProgress({ watched: 63, total: 62 })).toBe('62 de 62');
   });
 });
 

@@ -1,3 +1,4 @@
+import { DatabaseError } from '@rewam/database';
 import { TmdbError } from '@rewam/tmdb';
 import { describe, expect, it } from 'vitest';
 
@@ -39,5 +40,33 @@ describe('describeCatalogError', () => {
 
     expect(presentation.canRetry).toBe(false);
     expect(presentation.title).toMatch(/inesperada/i);
+  });
+});
+
+describe('describeCatalogError por tipo de mídia', () => {
+  it('fala de série quando a tela é de série', () => {
+    // Dizer "filme não encontrado" numa tela de série manda a pessoa procurar
+    // o problema no lugar errado.
+    const presentation = describeCatalogError(new TmdbError('não encontrado', 404), 'tv');
+
+    expect(presentation.title).toBe('Série não encontrada');
+    expect(presentation.detail).toContain('nenhuma série');
+  });
+
+  it('continua falando de filme por padrão', () => {
+    expect(describeCatalogError(new TmdbError('não encontrado', 404)).title).toBe(
+      'Filme não encontrado',
+    );
+  });
+
+  it('reconhece falha de gravação, não só do TMDB', () => {
+    // Carregar uma temporada busca no TMDB e grava no banco: sem este ramo,
+    // uma falha de gravação apareceria como "resposta inesperada do TMDB".
+    const presentation = describeCatalogError(
+      new DatabaseError('sem-permissao', 'Você não tem permissão para esta operação.'),
+    );
+
+    expect(presentation.detail).toBe('Você não tem permissão para esta operação.');
+    expect(presentation.canRetry).toBe(false);
   });
 });

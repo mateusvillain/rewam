@@ -15,9 +15,13 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import {
   CatalogErrorNotice,
+  countRegularSeasons,
   formatProgress,
+  formatSeasonCount,
+  indexByEpisode,
   parseTmdbId,
   releaseYear,
+  seasonProgress,
   SeasonSection,
   seriesProgress,
   titleSubtitle,
@@ -50,7 +54,7 @@ export default function SeriesDetailScreen() {
 
   // Grava as temporadas assim que o título existe, para que os episódios
   // consigam se ligar a elas.
-  usePersistSeasons(titleId, detail.data);
+  const { seasonsFailed } = usePersistSeasons(titleId, detail.data);
 
   const counts = useEpisodeWatchCounts(titleId);
 
@@ -85,6 +89,7 @@ export default function SeriesDetailScreen() {
         <Stack.Screen options={{ title: 'Série' }} />
         <CatalogErrorNotice
           error={detail.error}
+          mediaType="tv"
           onRetry={() => void detail.refetch()}
           isRetrying={detail.isFetching}
         />
@@ -97,6 +102,9 @@ export default function SeriesDetailScreen() {
   const showOriginalTitle = series.originalTitle !== null && series.originalTitle !== series.title;
   const watchCounts = counts.data ?? [];
   const progress = seriesProgress(series.seasons, watchCounts);
+  // Calculado uma vez aqui, e não dentro de cada temporada: fechada ou aberta,
+  // toda seção refaria o índice inteiro a cada render.
+  const watchedByEpisode = indexByEpisode(watchCounts);
 
   return (
     <Screen>
@@ -112,10 +120,15 @@ export default function SeriesDetailScreen() {
               <Text style={styles.originalTitle}>{series.originalTitle}</Text>
             ) : null}
             <FormDescription>{titleSubtitle(year, series.mediaType)}</FormDescription>
-            <FormDescription>{describeSeasonCount(series.seasons.length)}</FormDescription>
-            {/* O progresso só é verdade depois que as contagens chegam; antes
-                disso diria "0 de 62" para quem assistiu a série inteira. */}
-            {counts.isPending ? null : (
+            <FormDescription>
+              {formatSeasonCount(countRegularSeasons(series.seasons))}
+            </FormDescription>
+            {/* O progresso só é verdade depois que as contagens chegam, e é
+                falso se elas falharem: nos dois casos diria "0 de 62" para
+                quem assistiu a série inteira. Melhor não afirmar nada. */}
+            {counts.isPending ? null : counts.isError ? (
+              <FormMessage tone="neutro">Não foi possível carregar seu progresso.</FormMessage>
+            ) : (
               <FormDescription>{formatProgress(progress)}</FormDescription>
             )}
           </View>
@@ -136,6 +149,15 @@ export default function SeriesDetailScreen() {
           </View>
         ) : null}
 
+        {/* Falhar aqui não impede marcar episódio: o vínculo com a temporada
+            é conveniência, e `upsert_episodes` grava com ele nulo. Por isso o
+            recado é discreto e sem botão — não há nada travado esperando. */}
+        {seasonsFailed && !saveFailed ? (
+          <FormMessage tone="neutro">
+            As temporadas não foram guardadas. Os episódios continuam funcionando.
+          </FormMessage>
+        ) : null}
+
         {series.seasons.length === 0 ? (
           <FormDescription>O TMDB não lista temporadas para esta série.</FormDescription>
         ) : (
@@ -146,7 +168,8 @@ export default function SeriesDetailScreen() {
                 season={season}
                 titleId={titleId}
                 tmdbId={tmdbId}
-                counts={watchCounts}
+                progress={seasonProgress(season, watchCounts)}
+                watchedByEpisode={watchedByEpisode}
                 isOpen={openSeason === season.seasonNumber}
                 onToggle={() =>
                   setOpenSeason((current) =>
@@ -168,12 +191,6 @@ export default function SeriesDetailScreen() {
       </ScrollView>
     </Screen>
   );
-}
-
-/** Contagem de temporadas por extenso, com o singular concordando. */
-function describeSeasonCount(total: number): string {
-  if (total === 0) return 'Sem temporadas listadas';
-  return total === 1 ? '1 temporada' : `${total} temporadas`;
 }
 
 const styles = StyleSheet.create({

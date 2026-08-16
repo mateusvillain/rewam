@@ -1,20 +1,21 @@
-import type { EpisodeWatchCount } from '@rewam/database';
 import { colors, radii, spacing, typography } from '@rewam/tokens';
 import type { CatalogSeason } from '@rewam/types';
-import { FormDescription, FormMessage } from '@rewam/ui';
+import { Button, FormDescription, FormMessage } from '@rewam/ui';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { describeWatchError } from '@/features/watch';
-
+import { describeCatalogError } from './catalog-error';
 import { formatRuntime } from './title-presentation';
 import { useSeasonEpisodes } from './use-series';
-import { formatProgress, indexByEpisode, seasonProgress } from './series-progress';
+import { formatProgress, type Progress } from './series-progress';
 
 export type SeasonSectionProps = {
   season: CatalogSeason;
   titleId: string | null;
   tmdbId: number | null;
-  counts: ReadonlyArray<EpisodeWatchCount>;
+  /** Progresso desta temporada, calculado uma vez pela tela. */
+  progress: Progress;
+  /** Contagem por `episodes.id`, montada uma vez pela tela. */
+  watchedByEpisode: ReadonlyMap<string, number>;
   isOpen: boolean;
   onToggle: () => void;
 };
@@ -30,15 +31,19 @@ export function SeasonSection({
   season,
   titleId,
   tmdbId,
-  counts,
+  progress,
+  watchedByEpisode,
   isOpen,
   onToggle,
 }: SeasonSectionProps) {
   const episodes = useSeasonEpisodes(titleId, tmdbId, season.seasonNumber, isOpen);
-  const progress = seasonProgress(season, counts);
-  const watchedByEpisode = indexByEpisode(counts);
 
   const label = season.name ?? `Temporada ${season.seasonNumber}`;
+
+  // Uma consulta desligada também é `pending` no TanStack v5. Sem distinguir,
+  // uma temporada aberta antes de o título estar gravado giraria o indicador
+  // para sempre — carregando algo que nunca foi pedido.
+  const isWaitingForTitle = titleId === null || tmdbId === null;
 
   return (
     <View style={styles.root}>
@@ -60,10 +65,18 @@ export function SeasonSection({
 
       {isOpen ? (
         <View style={styles.body}>
-          {episodes.isPending ? (
+          {isWaitingForTitle ? (
+            <FormDescription>
+              Aguardando a série ser guardada para carregar os episódios.
+            </FormDescription>
+          ) : episodes.isPending ? (
             <ActivityIndicator accessibilityLabel={`Carregando ${label}`} />
           ) : episodes.isError ? (
-            <FormMessage>{describeWatchError(episodes.error).message}</FormMessage>
+            <SeasonError
+              error={episodes.error}
+              isRetrying={episodes.isFetching}
+              onRetry={() => void episodes.refetch()}
+            />
           ) : episodes.data.length === 0 ? (
             <FormDescription>Esta temporada ainda não tem episódios no catálogo.</FormDescription>
           ) : (
@@ -78,6 +91,39 @@ export function SeasonSection({
             ))
           )}
         </View>
+      ) : null}
+    </View>
+  );
+}
+
+/**
+ * A falha ao carregar uma temporada.
+ *
+ * `describeCatalogError`, e não o tradutor de exibições: esta consulta busca no
+ * TMDB **e** grava no banco, então tanto `TmdbError` quanto `DatabaseError`
+ * passam por aqui — e é ele que sabe dos dois.
+ */
+function SeasonError({
+  error,
+  isRetrying,
+  onRetry,
+}: {
+  error: unknown;
+  isRetrying: boolean;
+  onRetry: () => void;
+}) {
+  const failure = describeCatalogError(error, 'tv');
+
+  return (
+    <View style={styles.error}>
+      <FormMessage>{failure.detail}</FormMessage>
+      {failure.canRetry ? (
+        <Button
+          label={isRetrying ? 'Tentando…' : 'Tentar de novo'}
+          variant="ghost"
+          disabled={isRetrying}
+          onPress={onRetry}
+        />
       ) : null}
     </View>
   );
@@ -160,6 +206,9 @@ const styles = StyleSheet.create({
   body: {
     gap: spacing.sm,
     padding: spacing.md,
+  },
+  error: {
+    gap: spacing.sm,
   },
   episode: {
     alignItems: 'center',

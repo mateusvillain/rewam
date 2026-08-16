@@ -1,7 +1,7 @@
 import {
   catalogEpisodeSchema,
   catalogSeasonSchema,
-  episodeWatchCountIdSchema,
+  episodeWatchCountSchema,
   type CatalogEpisode,
   type CatalogSeason,
   type Episode,
@@ -11,8 +11,9 @@ import {
 import type { RewamSupabaseClient } from './client';
 import { throwIfError } from './errors';
 import { requireRows, toEpisode, toSeason } from './rows';
+import type { EpisodeWatchCount } from '@rewam/types';
 
-export type { Episode, Season };
+export type { Episode, EpisodeWatchCount, Season };
 
 /**
  * Cópia local do catálogo de uma série: temporadas e episódios.
@@ -60,7 +61,7 @@ export async function upsertSeasons(
 
   throwIfError(error);
 
-  return requireRows(data, 'temporadas').map(toSeason);
+  return requireRows(data, 'as temporadas gravadas').map(toSeason);
 }
 
 /**
@@ -100,7 +101,7 @@ export async function upsertEpisodes(
   throwIfError(error);
 
   return (
-    requireRows(data, 'episódios')
+    requireRows(data, 'os episódios gravados')
       .map(toEpisode)
       // A ordem de retorno de um `insert ... returning` não é garantida, e a tela
       // lista episódios em ordem. Ordenar aqui evita que cada consumidor lembre.
@@ -111,20 +112,14 @@ export async function upsertEpisodes(
 /**
  * Quantas vezes cada episódio da série foi assistido.
  *
- * Devolve um mapa por `episodes.id`, com `season_number` junto — é ele que
- * permite mostrar o progresso de uma temporada ainda fechada, sem carregar os
- * episódios dela.
+ * Uma linha por episódio com ao menos uma exibição, com `seasonNumber` junto —
+ * é ele que permite mostrar o progresso de uma temporada ainda fechada, sem
+ * carregar os episódios dela.
  *
- * Episódio ausente do mapa significa nunca assistido. Devolver zero para cada
+ * Episódio ausente da lista significa nunca assistido. Devolver zero para cada
  * episódio existente exigiria conhecer todos eles, que é justamente o que o
  * carregamento sob demanda evita.
  */
-export type EpisodeWatchCount = {
-  episodeId: string;
-  seasonNumber: number;
-  watchCount: number;
-};
-
 export async function getEpisodeWatchCounts(
   client: RewamSupabaseClient,
   titleId: string,
@@ -133,9 +128,11 @@ export async function getEpisodeWatchCounts(
 
   throwIfError(error);
 
-  return requireRows(data, 'contagens de episódio').map((row) => ({
-    episodeId: episodeWatchCountIdSchema.parse(row.episode_id),
-    seasonNumber: Number(row.season_number),
-    watchCount: Number(row.watch_count),
-  }));
+  return requireRows(data, 'as contagens de exibição').map((row) =>
+    episodeWatchCountSchema.parse({
+      episodeId: row.episode_id,
+      seasonNumber: Number(row.season_number),
+      watchCount: Number(row.watch_count),
+    }),
+  );
 }
