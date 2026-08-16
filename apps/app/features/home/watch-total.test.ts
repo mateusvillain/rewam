@@ -1,21 +1,11 @@
 import type { WatchStats } from '@rewam/database';
 import { describe, expect, it } from 'vitest';
 
-import { describeIncompleteTotal, formatTotal, hasNothingYet } from './watch-total';
+import { describeIncompleteTotal, hasNothingYet } from './watch-total';
 
 function stats(partial: Partial<WatchStats> = {}): WatchStats {
   return { totalMinutes: 0, totalEvents: 0, unknownDurationEvents: 0, ...partial };
 }
-
-describe('formatTotal', () => {
-  it('mostra dias, horas e minutos', () => {
-    expect(formatTotal(3070)).toBe('2 d 3 h 10 min');
-  });
-
-  it('conta nova mostra zero, e não vazio', () => {
-    expect(formatTotal(0)).toBe('0 min');
-  });
-});
 
 describe('describeIncompleteTotal', () => {
   it('cala quando não há nada de fora', () => {

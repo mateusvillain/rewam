@@ -1,8 +1,8 @@
 import { watchStatsSchema, type WatchStats } from '@rewam/types';
 
 import type { RewamSupabaseClient } from './client';
-import { DatabaseError, throwIfError } from './errors';
-import type { RawRow } from './rows';
+import { throwIfError } from './errors';
+import { requireRow } from './rows';
 
 export type { WatchStats };
 
@@ -28,14 +28,9 @@ export async function getWatchStats(client: RewamSupabaseClient): Promise<WatchS
   throwIfError(error);
 
   // `returns table` chega como lista, mesmo sendo sempre uma linha: agregado
-  // sem `group by` não tem como devolver zero nem duas.
-  const row = Array.isArray(data) ? data[0] : data;
-
-  if (typeof row !== 'object' || row === null) {
-    throw new DatabaseError('indisponivel', 'O banco não devolveu o total assistido.');
-  }
-
-  const stats = row as RawRow;
+  // sem `group by` não tem como devolver zero nem duas. `requireRow` cobre o
+  // caso de vir vazia mesmo assim, com o mesmo erro nomeado do resto do pacote.
+  const stats = requireRow(Array.isArray(data) ? data[0] : data);
 
   return watchStatsSchema.parse({
     // `bigint` do Postgres chega como número aqui porque os valores cabem com

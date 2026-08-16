@@ -1,5 +1,4 @@
 import type { WatchStats } from '@rewam/database';
-import { formatDuration } from '@rewam/utils';
 
 /**
  * Como o total assistido é dito na tela de início.
@@ -7,13 +6,6 @@ import { formatDuration } from '@rewam/utils';
  * Separado da tela para poder ser testado — o app ainda não tem teste de
  * componente (E8.1).
  */
-
-/** O número grande da tela: `2 d 3 h 10 min`, ou zero por extenso. */
-export function formatTotal(totalMinutes: number): string {
-  // `formatDuration` já devolve "0 min" para zero, que é o certo aqui: quem
-  // ainda não registrou nada tem zero minutos, não um total desconhecido.
-  return formatDuration(totalMinutes);
-}
 
 /**
  * A ressalva sobre o que ficou de fora, ou `null` quando não há ressalva.
