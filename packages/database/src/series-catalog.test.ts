@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { RewamSupabaseClient } from './client';
 import { DatabaseError } from './errors';
-import { upsertEpisodes, upsertSeasons } from './seasons';
+import { upsertEpisodes, upsertSeasons } from './series-catalog';
 
 /**
  * A idempotência é do banco, e está verificada em `supabase/tests/catalog_batch.sql`.

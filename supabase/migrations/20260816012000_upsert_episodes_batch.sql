@@ -14,7 +14,7 @@
 -- `authenticated` só lê catálogo, e a escrita passa por função. A guarda de
 -- sessão é a mesma.
 
-create function public.upsert_episodes(p_title_id uuid, p_episodes jsonb)
+create or replace function public.upsert_episodes(p_title_id uuid, p_episodes jsonb)
 returns setof public.episodes
 language plpgsql
 security definer
@@ -34,7 +34,24 @@ begin
       using errcode = 'invalid_parameter_value';
   end if;
 
+  -- A lista chega com duplicatas mais vezes do que se imagina: o TMDB repete
+  -- episódio em temporadas remendadas, e o lote da E5.4 pode juntar seleções
+  -- sobrepostas. `ON CONFLICT DO UPDATE` recusa tocar a mesma linha duas vezes
+  -- na mesma instrução (21000), e o lote inteiro morreria por causa de uma
+  -- linha repetida — com um erro que não diz qual.
+  --
+  -- A última ocorrência vence, e não a primeira: quem manda o mesmo episódio
+  -- duas vezes na mesma chamada está corrigindo o anterior, não o contrário.
   return query
+  with entrada as (
+    select distinct on ((item->>'season_number')::integer, (item->>'episode_number')::integer)
+      item
+    from jsonb_array_elements(p_episodes) with ordinality as t(item, posicao)
+    order by
+      (item->>'season_number')::integer,
+      (item->>'episode_number')::integer,
+      t.posicao desc
+  )
   insert into public.episodes as e (
     title_id, season_id, season_number, episode_number, tmdb_episode_id, name,
     runtime_minutes, air_date
@@ -53,7 +70,7 @@ begin
     item->>'name',
     (item->>'runtime_minutes')::integer,
     (item->>'air_date')::date
-  from jsonb_array_elements(p_episodes) as item
+  from entrada
   on conflict (title_id, season_number, episode_number) do update set
     season_id = coalesce(excluded.season_id, e.season_id),
     tmdb_episode_id = coalesce(excluded.tmdb_episode_id, e.tmdb_episode_id),
@@ -78,7 +95,7 @@ grant execute on function public.upsert_episodes(uuid, jsonb) to authenticated;
 -- vinte, e o detalhe grava todas ao abrir. Mesmo formato de entrada e mesma
 -- guarda de sessão da função de episódios acima.
 
-create function public.upsert_seasons(p_title_id uuid, p_seasons jsonb)
+create or replace function public.upsert_seasons(p_title_id uuid, p_seasons jsonb)
 returns setof public.seasons
 language plpgsql
 security definer
@@ -95,7 +112,13 @@ begin
       using errcode = 'invalid_parameter_value';
   end if;
 
+  -- Mesma dedupe dos episódios, pelo mesmo motivo (21000).
   return query
+  with entrada as (
+    select distinct on ((item->>'season_number')::integer) item
+    from jsonb_array_elements(p_seasons) with ordinality as t(item, posicao)
+    order by (item->>'season_number')::integer, t.posicao desc
+  )
   insert into public.seasons as s (title_id, tmdb_season_number, name, episode_count, poster_path)
   select
     p_title_id,
@@ -103,7 +126,7 @@ begin
     item->>'name',
     (item->>'episode_count')::integer,
     item->>'poster_path'
-  from jsonb_array_elements(p_seasons) as item
+  from entrada
   on conflict (title_id, tmdb_season_number) do update set
     name = excluded.name,
     -- `episode_count` não entra em cálculo de tempo assistido, mas orienta a

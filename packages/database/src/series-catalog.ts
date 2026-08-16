@@ -8,13 +8,13 @@ import {
 } from '@rewam/types';
 
 import type { RewamSupabaseClient } from './client';
-import { DatabaseError, throwIfError } from './errors';
-import { toEpisode, toSeason, type RawRow } from './rows';
+import { throwIfError } from './errors';
+import { requireRows, toEpisode, toSeason } from './rows';
 
 export type { Episode, Season };
 
 /**
- * Cópia local das temporadas e episódios de uma série.
+ * Cópia local do catálogo de uma série: temporadas e episódios.
  *
  * `watch_events` referencia `episodes.id`, então o episódio precisa existir
  * aqui antes de ser marcado — como o título precisa existir antes de um filme
@@ -105,17 +105,4 @@ export async function upsertEpisodes(
       // lista episódios em ordem. Ordenar aqui evita que cada consumidor lembre.
       .sort((a, b) => a.episodeNumber - b.episodeNumber)
   );
-}
-
-/**
- * As linhas que uma função `returns setof` prometeu devolver.
- *
- * Gravar N e receber outra coisa não é dado ausente: é a função ou o payload
- * errados. Falhar com nome próprio evita depurar uma lista vazia na tela.
- */
-function requireRows(data: unknown, what: string): RawRow[] {
-  if (!Array.isArray(data)) {
-    throw new DatabaseError('indisponivel', `O banco não devolveu as ${what} gravadas.`);
-  }
-  return data as RawRow[];
 }

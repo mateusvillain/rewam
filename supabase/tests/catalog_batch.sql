@@ -103,8 +103,34 @@ select pg_temp.expect_count('duração ausente é preenchida quando o dado apare
 
 -- Sem esta guarda, `jsonb_array_elements` reclamaria de tipos, o que não ajuda
 -- ninguém a achar a chamada errada.
-select pg_temp.expect_failure('objeto no lugar de lista',
-  $$select public.upsert_episodes('aaaaaaaa-0000-4000-8000-000000000001', '{"season_number": 1}'::jsonb)$$);
+select pg_temp.expect_failure_code('objeto no lugar de lista',
+  $$select public.upsert_episodes('aaaaaaaa-0000-4000-8000-000000000001', '{"season_number": 1}'::jsonb)$$,
+  '22023');
+
+-- ---------------------------------------------------------------------------
+-- Lote com episódio repetido
+-- ---------------------------------------------------------------------------
+
+-- `ON CONFLICT DO UPDATE` recusa tocar a mesma linha duas vezes na mesma
+-- instrução (21000). Sem a dedupe, uma temporada com episódio repetido derruba
+-- o lote inteiro — e o erro não diz qual linha causou.
+select public.upsert_episodes('aaaaaaaa-0000-4000-8000-000000000001', $json$[
+  {"season_number": 2, "episode_number": 1, "name": "primeira"},
+  {"season_number": 2, "episode_number": 1, "name": "última vence"}
+]$json$::jsonb);
+
+select pg_temp.expect_count('episódio repetido no lote grava uma linha só',
+  $$select count(*) from public.episodes
+    where title_id = 'aaaaaaaa-0000-4000-8000-000000000001' and season_number = 2$$, 1);
+
+select pg_temp.expect_count('e a última ocorrência é a que vale',
+  $$select count(*) from public.episodes
+    where title_id = 'aaaaaaaa-0000-4000-8000-000000000001'
+      and season_number = 2 and name = 'última vence'$$, 1);
+
+select pg_temp.expect_count('a dedupe também vale para temporadas',
+  $$select count(*) from public.upsert_seasons('aaaaaaaa-0000-4000-8000-000000000001',
+    '[{"season_number": 9, "name": "a"}, {"season_number": 9, "name": "b"}]'::jsonb)$$, 1);
 
 -- ---------------------------------------------------------------------------
 -- Anônimo não grava catálogo

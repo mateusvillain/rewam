@@ -73,6 +73,24 @@ export function toEpisode(row: Record<string, unknown>): Episode {
   });
 }
 
+/**
+ * As linhas que uma função `returns setof` prometeu devolver.
+ *
+ * `consulta-invalida`, e não `indisponivel`: mandar N e receber outra coisa é a
+ * função errada ou o payload errado — defeito de programação, que falha igual
+ * todas as vezes. Classificar como indisponível faria a tela oferecer "tentar
+ * de novo" para algo que nunca vai funcionar.
+ */
+export function requireRows(data: unknown, what: string): RawRow[] {
+  if (!Array.isArray(data)) {
+    throw new DatabaseError('consulta-invalida', `O banco não devolveu as ${what} gravadas.`);
+  }
+
+  // Cada elemento também: sem isto, uma linha que não seja objeto sairia como
+  // `ZodError` cru do conversor, três camadas acima do que de fato quebrou.
+  return data.map((row) => requireRow(row));
+}
+
 export function toSeason(row: RawRow): Season {
   return seasonSchema.parse({
     id: row.id,
