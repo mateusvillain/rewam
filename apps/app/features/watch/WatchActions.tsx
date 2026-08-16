@@ -9,6 +9,7 @@ import {
   useWatchEventsByTitle,
 } from './use-watch-events';
 import { describeWatchError } from './watch-error';
+import { WatchHistory } from './WatchHistory';
 
 export type WatchActionsProps = {
   /** `titles.id` do banco, não o id do TMDB: é ele que `watch_events` referencia. */
@@ -98,6 +99,13 @@ export function WatchActions({ titleId, runtimeMinutes }: WatchActionsProps) {
           onPress={() => remove.mutate(latest.id)}
         />
       ) : null}
+
+      {/* O histórico mora aqui, e não na tela, porque a consulta que o alimenta
+          é a mesma que decide os rótulos dos botões acima. Buscá-la duas vezes
+          abriria a chance de a contagem e a lista discordarem entre si. */}
+      <View style={styles.history}>
+        <WatchHistory events={list} />
+      </View>
     </View>
   );
 }
@@ -105,5 +113,9 @@ export function WatchActions({ titleId, runtimeMinutes }: WatchActionsProps) {
 const styles = StyleSheet.create({
   root: {
     gap: spacing.sm,
+  },
+  // Respiro maior antes da lista: ela é leitura, e os botões acima são ação.
+  history: {
+    marginTop: spacing.sm,
   },
 });

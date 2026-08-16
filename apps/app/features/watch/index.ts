@@ -6,3 +6,4 @@
  */
 export { useWatchEventsByTitle, watchEventsByTitleKey, watchEventsKey } from './use-watch-events';
 export { WatchActions } from './WatchActions';
+export { WatchHistory } from './WatchHistory';
