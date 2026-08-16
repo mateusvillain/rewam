@@ -32,6 +32,28 @@ begin
 end;
 $$;
 
+-- Quando o que importa é *qual* recusa veio.
+--
+-- `expect_failure` aceita uma família de códigos, o que é suficiente para
+-- "não pode" mas insuficiente para uma guarda específica: um teste de guarda de
+-- argumento passaria verde se a guarda sumisse e sobrasse um erro de privilégio
+-- no lugar. Aqui o código é afirmado, e qualquer outro derruba a verificação.
+create or replace function pg_temp.expect_failure_code(label text, stmt text, expected text)
+returns void language plpgsql as $$
+begin
+  begin
+    execute stmt;
+    raise exception 'FALHOU: % foi aceito e deveria ter sido rejeitado', label;
+  exception
+    when others then
+      if sqlstate <> expected then
+        raise exception 'FALHOU: % foi rejeitado com %, esperado %', label, sqlstate, expected;
+      end if;
+      raise notice 'ok (rejeitado: %) — %', sqlstate, label;
+  end;
+end;
+$$;
+
 create or replace function pg_temp.act_as(user_id uuid)
 returns void language plpgsql as $$
 begin

@@ -24,10 +24,11 @@
     "db:push": "supabase db push",
     "db:test:rls": "supabase/tests/run.sh supabase/tests/rls.sql",
     "db:test:profile": "supabase/tests/run.sh supabase/tests/profile_trigger.sql",
-    "db:test": "pnpm db:test:rls && pnpm db:test:profile && pnpm db:test:delete && pnpm db:test:title && pnpm db:test:stats",
+    "db:test": "pnpm db:test:rls && pnpm db:test:profile && pnpm db:test:delete && pnpm db:test:title && pnpm db:test:stats && pnpm db:test:batch",
     "db:test:delete": "supabase/tests/run.sh supabase/tests/delete_account.sql",
     "db:test:title": "supabase/tests/run.sh supabase/tests/title_upsert.sql",
-    "db:test:stats": "supabase/tests/run.sh supabase/tests/watch_stats.sql"
+    "db:test:stats": "supabase/tests/run.sh supabase/tests/watch_stats.sql",
+    "db:test:batch": "supabase/tests/run.sh supabase/tests/catalog_batch.sql"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

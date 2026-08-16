@@ -17,6 +17,17 @@ export const titleSchema = z.object({
 });
 export type Title = z.infer<typeof titleSchema>;
 
+export const seasonSchema = z.object({
+  id: z.uuid(),
+  titleId: z.uuid(),
+  // Zero existe: o TMDB usa a temporada 0 para especiais.
+  seasonNumber: z.number().int().nonnegative(),
+  name: z.string().nullable(),
+  episodeCount: z.number().int().nonnegative().nullable(),
+  posterPath: z.string().nullable(),
+});
+export type Season = z.infer<typeof seasonSchema>;
+
 export const episodeSchema = z.object({
   id: z.uuid(),
   titleId: z.uuid(),
@@ -54,6 +65,23 @@ export const catalogEpisodeSchema = episodeSchema
   .omit({ id: true, titleId: true })
   .extend({ tmdbId: z.number().int().positive() });
 export type CatalogEpisode = z.infer<typeof catalogEpisodeSchema>;
+
+/** Temporada do TMDB, ainda sem identidade no nosso banco. */
+export const catalogSeasonSchema = seasonSchema.omit({ id: true, titleId: true });
+export type CatalogSeason = z.infer<typeof catalogSeasonSchema>;
+
+/**
+ * Detalhe de série: o mesmo do filme, mais a lista de temporadas.
+ *
+ * As temporadas vêm no próprio `/tv/{id}`, então pedi-las separadamente seria
+ * uma segunda requisição para um dado que já chegou. `CatalogTitleDetail`
+ * continua sendo o contrato compartilhado com filme — o que só série tem
+ * mora aqui.
+ */
+export const catalogSeriesDetailSchema = catalogTitleDetailSchema.extend({
+  seasons: z.array(catalogSeasonSchema),
+});
+export type CatalogSeriesDetail = z.infer<typeof catalogSeriesDetailSchema>;
 
 /**
  * Instante vindo de uma coluna `timestamptz`.

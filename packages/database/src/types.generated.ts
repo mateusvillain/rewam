@@ -289,6 +289,28 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      upsert_episodes: {
+        Args: { p_episodes: Json; p_title_id: string }
+        Returns: {
+          air_date: string | null
+          created_at: string
+          episode_number: number
+          id: string
+          name: string | null
+          runtime_minutes: number | null
+          season_id: string | null
+          season_number: number
+          title_id: string
+          tmdb_episode_id: number | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "episodes"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       upsert_season: {
         Args: {
           p_episode_count?: number
@@ -312,6 +334,25 @@ export type Database = {
           to: "seasons"
           isOneToOne: true
           isSetofReturn: false
+        }
+      }
+      upsert_seasons: {
+        Args: { p_seasons: Json; p_title_id: string }
+        Returns: {
+          created_at: string
+          episode_count: number | null
+          id: string
+          name: string | null
+          poster_path: string | null
+          title_id: string
+          tmdb_season_number: number
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "seasons"
+          isOneToOne: false
+          isSetofReturn: true
         }
       }
       upsert_title: {
