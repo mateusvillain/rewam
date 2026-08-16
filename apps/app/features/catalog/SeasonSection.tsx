@@ -3,6 +3,7 @@ import type { CatalogSeason, EpisodeWatchCount } from '@rewam/types';
 import { Button, FormDescription, FormMessage } from '@rewam/ui';
 
 import { useCreateWatchEvent, useDeleteWatchEvent } from '@/features/watch';
+import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { describeCatalogError } from './catalog-error';
@@ -42,21 +43,37 @@ export function SeasonSection({
 
   const label = season.name ?? `Temporada ${season.seasonNumber}`;
 
-  // Uma consulta desligada também é `pending` no TanStack v5. Sem distinguir,
-  // uma temporada aberta antes de o título estar gravado giraria o indicador
-  // para sempre — carregando algo que nunca foi pedido.
-  const isWaitingForTitle = titleId === null || tmdbId === null;
-
   // Uma mutação por temporada, e não por linha: 24 episódios seriam 48
-  // observadores de mutação montados só para ficarem ociosos. Qual episódio
-  // está em voo sai das próprias variáveis da mutação.
+  // observadores de mutação montados só para ficarem ociosos.
   const create = useCreateWatchEvent();
   const remove = useDeleteWatchEvent();
 
-  const busyEpisodeId = create.isPending
-    ? create.variables?.episodeId
-    : remove.isPending
-      ? removingEpisodeId(remove.variables, watchedByEpisode)
+  // Quais episódios estão em voo, por id.
+  //
+  // Só a linha tocada trava, e não a temporada inteira: episódios têm contagens
+  // independentes — `episode_watch_counts` agrupa por `episode_id` —, então
+  // marcar o 3 enquanto o 1 grava não disputa nada. Travar as 24 linhas a cada
+  // toque faria uma temporada longa parecer quebrada.
+  //
+  // O conjunto vem daqui, e não das variáveis da mutação, porque elas guardam
+  // uma chamada só: com duas em voo, a segunda apagaria o rastro da primeira.
+  const [pendingEpisodes, setPendingEpisodes] = useState<ReadonlySet<string>>(new Set());
+
+  function markPending(episodeId: string, isPending: boolean) {
+    setPendingEpisodes((current) => {
+      const next = new Set(current);
+      if (isPending) next.add(episodeId);
+      else next.delete(episodeId);
+      return next;
+    });
+  }
+
+  // Sem isto o toque simplesmente não acontece: o botão destrava, a contagem
+  // não muda e nada explica por quê. É o que `WatchActions` já faz no filme.
+  const failure = create.isError
+    ? describeCatalogError(create.error, 'tv')
+    : remove.isError
+      ? describeCatalogError(remove.error, 'tv')
       : null;
 
   return (
@@ -79,7 +96,15 @@ export function SeasonSection({
 
       {isOpen ? (
         <View style={styles.body}>
-          {isWaitingForTitle ? (
+          {/* A condição fica inline, e não numa variável derivada: é ela que
+              faz o TypeScript estreitar `titleId` no ramo de baixo, onde a
+              gravação precisa dele. Um booleano nomeado obrigaria a asseverar
+              com `!` o que a própria condição já garante.
+
+              Uma consulta desligada também é `pending` no TanStack v5. Sem
+              distinguir, uma temporada aberta antes de o título estar gravado
+              giraria o indicador para sempre. */}
+          {titleId === null || tmdbId === null ? (
             <FormDescription>
               Aguardando a série ser guardada para carregar os episódios.
             </FormDescription>
@@ -93,7 +118,7 @@ export function SeasonSection({
             />
           ) : episodes.data.length === 0 ? (
             <FormDescription>Esta temporada ainda não tem episódios no catálogo.</FormDescription>
-          ) : titleId === null ? null : (
+          ) : (
             episodes.data.map((episode) => (
               <EpisodeRow
                 key={episode.id}
@@ -101,21 +126,31 @@ export function SeasonSection({
                 name={episode.name}
                 runtimeMinutes={episode.runtimeMinutes}
                 watched={watchedByEpisode.get(episode.id) ?? null}
-                isBusy={busyEpisodeId === episode.id}
-                isAnyBusy={create.isPending || remove.isPending}
-                onMark={() =>
-                  create.mutate({
-                    titleId,
-                    episodeId: episode.id,
-                    watchedAt: new Date().toISOString(),
-                    durationMinutes: episode.runtimeMinutes,
-                    notes: null,
-                  })
-                }
-                onUndo={(eventId) => remove.mutate(eventId)}
+                isBusy={pendingEpisodes.has(episode.id)}
+                onMark={() => {
+                  markPending(episode.id, true);
+                  create.mutate(
+                    {
+                      titleId,
+                      episodeId: episode.id,
+                      watchedAt: new Date().toISOString(),
+                      durationMinutes: episode.runtimeMinutes,
+                      notes: null,
+                    },
+                    { onSettled: () => markPending(episode.id, false) },
+                  );
+                }}
+                onUndo={(eventId) => {
+                  markPending(episode.id, true);
+                  remove.mutate(eventId, {
+                    onSettled: () => markPending(episode.id, false),
+                  });
+                }}
               />
             ))
           )}
+
+          {failure ? <FormMessage>{failure.detail}</FormMessage> : null}
         </View>
       ) : null}
     </View>
@@ -155,31 +190,12 @@ function SeasonError({
   );
 }
 
-/**
- * Qual episódio a remoção em voo pertence.
- *
- * A mutação de remover recebe o id do *evento*, não o do episódio, então o
- * caminho de volta passa pelo índice. Sem isso, remover deixaria a linha errada
- * marcada como ocupada.
- */
-function removingEpisodeId(
-  eventId: string | undefined,
-  index: ReadonlyMap<string, EpisodeWatchCount>,
-): string | null {
-  if (!eventId) return null;
-  for (const [episodeId, count] of index) {
-    if (count.latestEventId === eventId) return episodeId;
-  }
-  return null;
-}
-
 function EpisodeRow({
   number,
   name,
   runtimeMinutes,
   watched,
   isBusy,
-  isAnyBusy,
   onMark,
   onUndo,
 }: {
@@ -188,7 +204,6 @@ function EpisodeRow({
   runtimeMinutes: number | null;
   watched: EpisodeWatchCount | null;
   isBusy: boolean;
-  isAnyBusy: boolean;
   onMark: () => void;
   onUndo: (eventId: string) => void;
 }) {
@@ -206,44 +221,49 @@ function EpisodeRow({
         accessibilityLabel={`Episódio ${number}. ${label}. ${duration}. ${describeEpisodeCount(count)}`}
         style={styles.episodeInfo}
       >
-        <Text style={[styles.episodeNumber, count > 0 && styles.watchedText]}>{number}</Text>
+        <Text style={styles.episodeNumber}>{number}</Text>
 
         <View style={styles.episodeText}>
-          <Text style={[styles.episodeName, count > 0 && styles.watchedText]} numberOfLines={2}>
+          <Text style={styles.episodeName} numberOfLines={2}>
             {label}
           </Text>
           {/* A contagem é texto, e não só cor: cor sozinha não chega a quem não
-              a distingue, e é a informação da linha que muda. */}
-          <Text style={styles.episodeMeta}>
-            {duration}
-            {count > 0 ? ` · ${describeEpisodeCount(count)}` : ''}
-          </Text>
+              a distingue, e é a informação da linha que muda. Assistido não fica
+              mais apagado que não assistido — apagar é o que a interface faz com
+              o que está desabilitado, e é o oposto do que aconteceu aqui. */}
+          <Text style={styles.episodeMeta}>{duration}</Text>
+          {count > 0 ? (
+            <Text style={styles.watchedCount}>{describeEpisodeCount(count)}</Text>
+          ) : null}
         </View>
       </View>
 
       <View style={styles.episodeActions}>
-        {count > 0 && watched ? (
+        {watched ? (
           <Button
-            label="−"
+            label="Desfazer"
             variant="ghost"
+            // O rótulo visível diz o gesto; o acessível diz sobre o quê, porque
+            // fora da linha "Desfazer" sozinho não tem alvo.
             accessibilityLabel={`Remover o último registro do episódio ${number}`}
-            disabled={isAnyBusy}
+            disabled={isBusy}
             onPress={() => onUndo(watched.latestEventId)}
           />
         ) : null}
 
         <Button
-          label={isBusy ? '…' : '+'}
+          label={isBusy ? 'Salvando…' : 'Marcar'}
           variant={count > 0 ? 'ghost' : 'primary'}
+          // O estado entra no rótulo acessível: mudar só o texto visível deixa
+          // o leitor de tela anunciando o mesmo nome antes, durante e depois.
           accessibilityLabel={
-            count > 0
-              ? `Marcar episódio ${number} como reassistido`
-              : `Marcar episódio ${number} como assistido`
+            isBusy
+              ? `Salvando o episódio ${number}`
+              : count > 0
+                ? `Marcar episódio ${number} como reassistido`
+                : `Marcar episódio ${number} como assistido`
           }
-          // Todas as linhas travam enquanto qualquer mutação está no ar: elas
-          // compartilham a mesma contagem, e dois toques em sequência deixariam
-          // o resultado por conta da ordem das respostas.
-          disabled={isAnyBusy}
+          disabled={isBusy}
           onPress={onMark}
         />
       </View>
@@ -325,7 +345,9 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: typography.caption.fontSize,
   },
-  watchedText: {
-    color: colors.textMuted,
+  watchedCount: {
+    color: colors.success,
+    fontSize: typography.caption.fontSize,
+    fontWeight: '600',
   },
 });
