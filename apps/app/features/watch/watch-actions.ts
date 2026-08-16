@@ -1,5 +1,3 @@
-import type { WatchEvent } from '@rewam/database';
-
 /**
  * Regras da ação de registrar, separadas da tela para poderem ser testadas — o
  * app ainda não tem teste de componente (E8.1).
@@ -26,23 +24,4 @@ export function watchCountLabel(count: number): string {
   if (count <= 0) return 'Você ainda não registrou este filme.';
   if (count === 1) return 'Você assistiu 1 vez.';
   return `Você assistiu ${count} vezes.`;
-}
-
-/**
- * O registro que a remoção apaga: sempre o mais recente.
- *
- * A remoção existe para desfazer o toque errado, e o toque errado é o último —
- * daí escolher pela data, e não pela posição na lista. O desempate por `id`
- * repete o da consulta, para que dois registros no mesmo instante não tornem
- * "o último" uma questão de sorte.
- */
-export function mostRecentEvent(events: ReadonlyArray<WatchEvent>): WatchEvent | null {
-  if (events.length === 0) return null;
-
-  return events.reduce((latest, event) => {
-    const diff = Date.parse(event.watchedAt) - Date.parse(latest.watchedAt);
-    if (diff > 0) return event;
-    if (diff < 0) return latest;
-    return event.id > latest.id ? event : latest;
-  });
 }
