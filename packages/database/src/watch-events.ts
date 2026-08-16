@@ -12,7 +12,7 @@ import {
 
 import type { RewamSupabaseClient } from './client';
 import { DatabaseError, throwIfError } from './errors';
-import { requireRow, toEpisode, toTitle, type RawRow } from './rows';
+import { requireRow, requireRows, toEpisode, toTitle, type RawRow } from './rows';
 
 export type { WatchEvent, WatchEventWithContext };
 
@@ -147,6 +147,47 @@ export async function createWatchEvent(
   throwIfError(error);
 
   return toWatchEvent(requireRow(data));
+}
+
+/**
+ * Registra várias exibições de uma vez.
+ *
+ * Uma requisição só, e atômica: o PostgREST insere a lista inteira numa
+ * instrução, então ou todos os episódios entram ou nenhum entra. É mais forte
+ * do que gravar um por um e relatar quais falharam — meia temporada registrada
+ * é um estado que a pessoa teria de conferir episódio a episódio para descobrir
+ * onde parou.
+ *
+ * O RLS vale por linha como em qualquer insert: `user_id` continua vindo do
+ * default de `auth.uid()`, e a política recusaria a instrução inteira se
+ * alguma linha tentasse outro dono.
+ */
+export async function createWatchEvents(
+  client: RewamSupabaseClient,
+  inputs: ReadonlyArray<CreateWatchEventInput>,
+): Promise<WatchEvent[]> {
+  // Nada a gravar não é erro, mas também não é uma ida ao banco.
+  if (inputs.length === 0) return [];
+
+  const rows = inputs.map((input) => {
+    const event = createWatchEventInputSchema.parse(input);
+    return {
+      title_id: event.titleId,
+      episode_id: event.episodeId,
+      watched_at: event.watchedAt,
+      duration_minutes: event.durationMinutes,
+      notes: event.notes,
+    };
+  });
+
+  const { data, error } = await client
+    .from('watch_events')
+    .insert(rows)
+    .select(WATCH_EVENT_COLUMNS);
+
+  throwIfError(error);
+
+  return requireRows(data, 'as exibições gravadas').map(toWatchEvent);
 }
 
 /**

@@ -1,14 +1,22 @@
 import { colors, radii, spacing, typography } from '@rewam/tokens';
 import type { CatalogSeason, EpisodeWatchCount } from '@rewam/types';
+
+import type { SelectionSummary } from './batch-selection';
 import { Button, FormDescription, FormMessage } from '@rewam/ui';
 
-import { useCreateWatchEvent, useDeleteWatchEvent } from '@/features/watch';
+import { useCreateWatchEvent, useCreateWatchEvents, useDeleteWatchEvent } from '@/features/watch';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { describeCatalogError } from './catalog-error';
 import { formatRuntime } from './title-presentation';
 import { useSeasonEpisodes } from './use-series';
+import {
+  describeSelection,
+  summarizeSelection,
+  toggleSelection,
+  toggleWholeSeason,
+} from './batch-selection';
 import { describeEpisodeCount, formatProgress, type Progress } from './series-progress';
 
 export type SeasonSectionProps = {
@@ -59,6 +67,24 @@ export function SeasonSection({
   // uma chamada só: com duas em voo, a segunda apagaria o rastro da primeira.
   const [pendingEpisodes, setPendingEpisodes] = useState<ReadonlySet<string>>(new Set());
 
+  // Seleção múltipla, para marcar uma temporada sem tocar episódio a episódio.
+  // Vive por temporada: selecionar em duas ao mesmo tempo pediria um resumo que
+  // some coisas que a pessoa não vê juntas na tela.
+  //
+  // O modo é estado próprio, e não derivado de `selected.size > 0`: derivado,
+  // não haveria como começar a selecionar — o controle de cada linha só
+  // apareceria depois de já haver alguém selecionado, e a única entrada seria
+  // "temporada inteira". Escolher três episódios de vinte e quatro ficaria
+  // impossível.
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const batch = useCreateWatchEvents();
+
+  function leaveSelection() {
+    setIsSelecting(false);
+    setSelected(new Set());
+  }
+
   function markPending(episodeId: string, isPending: boolean) {
     setPendingEpisodes((current) => {
       const next = new Set(current);
@@ -74,7 +100,9 @@ export function SeasonSection({
     ? describeCatalogError(create.error, 'tv')
     : remove.isError
       ? describeCatalogError(remove.error, 'tv')
-      : null;
+      : batch.isError
+        ? describeCatalogError(batch.error, 'tv')
+        : null;
 
   return (
     <View style={styles.root}>
@@ -127,6 +155,11 @@ export function SeasonSection({
                 runtimeMinutes={episode.runtimeMinutes}
                 watched={watchedByEpisode.get(episode.id) ?? null}
                 isBusy={pendingEpisodes.has(episode.id)}
+                isSelecting={isSelecting}
+                isSelected={selected.has(episode.id)}
+                onToggleSelection={() =>
+                  setSelected((current) => toggleSelection(current, episode.id))
+                }
                 onMark={() => {
                   markPending(episode.id, true);
                   create.mutate(
@@ -151,6 +184,39 @@ export function SeasonSection({
           )}
 
           {failure ? <FormMessage>{failure.detail}</FormMessage> : null}
+
+          {episodes.data && episodes.data.length > 0 && titleId !== null ? (
+            <BatchBar
+              isSelecting={isSelecting}
+              summary={summarizeSelection(episodes.data, selected)}
+              isSaving={batch.isPending}
+              allSelected={
+                episodes.data.length > 0 && episodes.data.every((e) => selected.has(e.id))
+              }
+              onStart={() => setIsSelecting(true)}
+              onToggleAll={() =>
+                setSelected((current) => toggleWholeSeason(current, episodes.data))
+              }
+              onConfirm={() => {
+                const now = new Date().toISOString();
+                batch.mutate(
+                  episodes.data
+                    .filter((episode) => selected.has(episode.id))
+                    .map((episode) => ({
+                      titleId,
+                      episodeId: episode.id,
+                      // Todos com a mesma data: foi uma sessão só, e datas
+                      // diferentes por milissegundo não significam nada.
+                      watchedAt: now,
+                      durationMinutes: episode.runtimeMinutes,
+                      notes: null,
+                    })),
+                  { onSuccess: leaveSelection },
+                );
+              }}
+              onCancel={leaveSelection}
+            />
+          ) : null}
         </View>
       ) : null}
     </View>
@@ -190,12 +256,82 @@ function SeasonError({
   );
 }
 
+/**
+ * A barra de seleção em lote.
+ *
+ * O resumo aparece antes de confirmar porque é o que o briefing pede: a pessoa
+ * precisa saber quantos minutos está prestes a somar ao total. Sem ele,
+ * "marcar temporada" é um botão que muda um número invisível.
+ */
+function BatchBar({
+  isSelecting,
+  summary,
+  isSaving,
+  allSelected,
+  onStart,
+  onToggleAll,
+  onConfirm,
+  onCancel,
+}: {
+  isSelecting: boolean;
+  summary: SelectionSummary;
+  isSaving: boolean;
+  allSelected: boolean;
+  onStart: () => void;
+  onToggleAll: () => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  if (!isSelecting) {
+    return (
+      <View style={styles.batch}>
+        <Button label="Selecionar vários" variant="ghost" onPress={onStart} />
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.batch}>
+      <Button
+        label={allSelected ? 'Desmarcar temporada' : 'Selecionar temporada'}
+        variant="ghost"
+        disabled={isSaving}
+        onPress={onToggleAll}
+      />
+
+      {summary.count > 0 ? (
+        <>
+          {/* Agrupado com o texto do resumo para o leitor de tela anunciar o
+              que será gravado, e não só o rótulo do botão. */}
+          <View accessible accessibilityLabel={`Selecionado: ${describeSelection(summary)}`}>
+            <FormDescription>{describeSelection(summary)}</FormDescription>
+          </View>
+
+          <View style={styles.batchActions}>
+            <Button label="Cancelar" variant="ghost" disabled={isSaving} onPress={onCancel} />
+            <Button
+              label={isSaving ? 'Registrando…' : 'Registrar selecionados'}
+              disabled={isSaving}
+              onPress={onConfirm}
+            />
+          </View>
+        </>
+      ) : (
+        <Button label="Cancelar" variant="ghost" disabled={isSaving} onPress={onCancel} />
+      )}
+    </View>
+  );
+}
+
 function EpisodeRow({
   number,
   name,
   runtimeMinutes,
   watched,
   isBusy,
+  isSelecting,
+  isSelected,
+  onToggleSelection,
   onMark,
   onUndo,
 }: {
@@ -204,6 +340,9 @@ function EpisodeRow({
   runtimeMinutes: number | null;
   watched: EpisodeWatchCount | null;
   isBusy: boolean;
+  isSelecting: boolean;
+  isSelected: boolean;
+  onToggleSelection: () => void;
   onMark: () => void;
   onUndo: (eventId: string) => void;
 }) {
@@ -239,33 +378,49 @@ function EpisodeRow({
       </View>
 
       <View style={styles.episodeActions}>
-        {watched ? (
+        {/* Em modo de seleção os controles de um episódio só somem: com os dois
+            à mão, um toque em "Marcar" gravaria um enquanto a seleção espera
+            para gravar vários, e a contagem mudaria por baixo do resumo. */}
+        {isSelecting ? (
           <Button
-            label="Desfazer"
-            variant="ghost"
-            // O rótulo visível diz o gesto; o acessível diz sobre o quê, porque
-            // fora da linha "Desfazer" sozinho não tem alvo.
-            accessibilityLabel={`Remover o último registro do episódio ${number}`}
-            disabled={isBusy}
-            onPress={() => onUndo(watched.latestEventId)}
+            label={isSelected ? 'Selecionado' : 'Selecionar'}
+            variant={isSelected ? 'primary' : 'ghost'}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: isSelected }}
+            accessibilityLabel={`Episódio ${number}`}
+            onPress={onToggleSelection}
           />
-        ) : null}
+        ) : (
+          <>
+            {watched ? (
+              <Button
+                label="Desfazer"
+                variant="ghost"
+                // O rótulo visível diz o gesto; o acessível diz sobre o quê, porque
+                // fora da linha "Desfazer" sozinho não tem alvo.
+                accessibilityLabel={`Remover o último registro do episódio ${number}`}
+                disabled={isBusy}
+                onPress={() => onUndo(watched.latestEventId)}
+              />
+            ) : null}
 
-        <Button
-          label={isBusy ? 'Salvando…' : 'Marcar'}
-          variant={count > 0 ? 'ghost' : 'primary'}
-          // O estado entra no rótulo acessível: mudar só o texto visível deixa
-          // o leitor de tela anunciando o mesmo nome antes, durante e depois.
-          accessibilityLabel={
-            isBusy
-              ? `Salvando o episódio ${number}`
-              : count > 0
-                ? `Marcar episódio ${number} como reassistido`
-                : `Marcar episódio ${number} como assistido`
-          }
-          disabled={isBusy}
-          onPress={onMark}
-        />
+            <Button
+              label={isBusy ? 'Salvando…' : 'Marcar'}
+              variant={count > 0 ? 'ghost' : 'primary'}
+              // O estado entra no rótulo acessível: mudar só o texto visível deixa
+              // o leitor de tela anunciando o mesmo nome antes, durante e depois.
+              accessibilityLabel={
+                isBusy
+                  ? `Salvando o episódio ${number}`
+                  : count > 0
+                    ? `Marcar episódio ${number} como reassistido`
+                    : `Marcar episódio ${number} como assistido`
+              }
+              disabled={isBusy}
+              onPress={onMark}
+            />
+          </>
+        )}
       </View>
     </View>
   );
@@ -326,6 +481,16 @@ const styles = StyleSheet.create({
   episodeActions: {
     flexDirection: 'row',
     gap: spacing.xs,
+  },
+  batch: {
+    borderTopColor: colors.border,
+    borderTopWidth: 1,
+    gap: spacing.sm,
+    paddingTop: spacing.md,
+  },
+  batchActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
   },
   episodeNumber: {
     color: colors.textMuted,

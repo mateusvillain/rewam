@@ -4,6 +4,13 @@ export { parseTmdbId } from './route-params';
 export { formatRuntime, releaseYear, titleSubtitle } from './title-presentation';
 export { titleQueryKey, useUpsertTitle } from './use-title';
 export { SeasonSection } from './SeasonSection';
+export {
+  describeSelection,
+  summarizeSelection,
+  toggleSelection,
+  toggleWholeSeason,
+  type SelectionSummary,
+} from './batch-selection';
 // Só o que a tela consome. `seasonProgress` e `indexByEpisode` são chamados
 // pela própria tela para calcular uma vez e passar adiante, em vez de cada
 // temporada refazer a conta a cada render — inclusive fechada.
