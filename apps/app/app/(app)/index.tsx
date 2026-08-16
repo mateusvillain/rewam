@@ -3,7 +3,7 @@ import { Button, FormDescription, FormMessage, formLinkStyle, FormLinks, Screen 
 import { Link, Stack, useRouter } from 'expo-router';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
-import { formatDuration } from '@rewam/utils';
+import { formatLongDuration } from '@rewam/utils';
 
 import { describeIncompleteTotal, hasNothingYet, useWatchStats } from '@/features/home';
 import { describeWatchError, type WatchErrorPresentation } from '@/features/watch';
@@ -36,10 +36,12 @@ export default function HomeScreen() {
         />
       ) : (
         <Total
-          // `formatDuration` já devolve "0 min" para zero, que é o certo aqui:
-          // quem ainda não registrou nada tem zero minutos, não um total
-          // desconhecido.
-          total={formatDuration(stats.data.totalMinutes)}
+          // Por extenso, e não compacto: este é o único número que o app
+          // apresenta, e a tela tem espaço de sobra para dizê-lo sem
+          // abreviação. `formatLongDuration` já devolve "0 minutos" para zero,
+          // que é o certo aqui: quem ainda não registrou nada tem zero
+          // minutos, não um total desconhecido.
+          total={formatLongDuration(stats.data.totalMinutes)}
           incomplete={describeIncompleteTotal(stats.data)}
           isEmpty={hasNothingYet(stats.data)}
         />
