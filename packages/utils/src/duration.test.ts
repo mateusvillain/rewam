@@ -61,7 +61,7 @@ describe('formatLongDuration', () => {
     expect(formatLongDuration(2)).toBe('2 minutos');
   });
 
-  it('omite unidades zeradas do meio', () => {
+  it('omite unidades zeradas, no meio ou no fim', () => {
     expect(formatLongDuration(1470)).toBe('1 dia e 30 minutos');
     expect(formatLongDuration(1500)).toBe('1 dia e 1 hora');
   });

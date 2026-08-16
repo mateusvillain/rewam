@@ -27,6 +27,41 @@ export function breakdownMinutes(totalMinutes: number): DurationBreakdown {
   };
 }
 
+type DurationUnit = {
+  value: number;
+  short: string;
+  singular: string;
+  plural: string;
+};
+
+/**
+ * As unidades que entram no texto, da maior para a menor, já sem as zeradas.
+ *
+ * A regra do zero mora aqui, e não em cada formatador, porque é a mesma para
+ * os dois e é sutil o bastante para não querer duas cópias: unidade zerada
+ * some — 1470 minutos é "1 dia e 30 minutos", já que dizer "0 horas" no meio
+ * faria a pessoa ler um zero que não significa nada —, exceto quando não
+ * sobrou nenhuma. Quem ainda não registrou nada tem zero minutos, e um texto
+ * vazio não diria isso.
+ */
+function significantUnits(totalMinutes: number): ReadonlyArray<DurationUnit> {
+  const { days, hours, minutes } = breakdownMinutes(totalMinutes);
+  const smallest: DurationUnit = {
+    value: minutes,
+    short: 'min',
+    singular: 'minuto',
+    plural: 'minutos',
+  };
+  const units: DurationUnit[] = [
+    { value: days, short: 'd', singular: 'dia', plural: 'dias' },
+    { value: hours, short: 'h', singular: 'hora', plural: 'horas' },
+    smallest,
+  ];
+
+  const significant = units.filter((unit) => unit.value > 0);
+  return significant.length > 0 ? significant : [smallest];
+}
+
 /**
  * Formato por extenso: `1 dia, 10 horas e 30 minutos`.
  *
@@ -35,25 +70,13 @@ export function breakdownMinutes(totalMinutes: number): DurationBreakdown {
  * de a pessoa decifrar abreviações. Numa linha de lista, ao lado de outros
  * dados, essa economia paga. No total da tela de início — o único número que o
  * app apresenta, e a resposta da única pergunta que o produto faz — não paga.
- *
- * Unidades zeradas somem, então 1470 minutos é "1 dia e 30 minutos": dizer
- * "0 horas" no meio faria a pessoa ler um zero que não significa nada.
  */
 export function formatLongDuration(totalMinutes: number): string {
-  const { days, hours, minutes } = breakdownMinutes(totalMinutes);
-  const parts: string[] = [];
-
-  if (days > 0) parts.push(pluralize(days, 'dia', 'dias'));
-  if (hours > 0) parts.push(pluralize(hours, 'hora', 'horas'));
-  // Zero minutos entra quando não há mais nada: quem não registrou nada tem
-  // zero minutos, e uma frase vazia não diria isso.
-  if (minutes > 0 || parts.length === 0) parts.push(pluralize(minutes, 'minuto', 'minutos'));
+  const parts = significantUnits(totalMinutes).map(
+    ({ value, singular, plural }) => `${value} ${value === 1 ? singular : plural}`,
+  );
 
   return joinInSentence(parts);
-}
-
-function pluralize(value: number, singular: string, plural: string): string {
-  return `${value} ${value === 1 ? singular : plural}`;
 }
 
 /**
@@ -62,9 +85,13 @@ function pluralize(value: number, singular: string, plural: string): string {
  * que se lê como lista, não como duração.
  */
 function joinInSentence(parts: ReadonlyArray<string>): string {
-  if (parts.length <= 1) return parts[0] ?? '';
+  // `parts` nunca chega vazio: `significantUnits` sempre devolve ao menos uma
+  // unidade. O `?? ''` é o preço do índice dinâmico sob
+  // `noUncheckedIndexedAccess`, não um estado que a tela alcance.
+  const last = parts[parts.length - 1] ?? '';
+  const leading = parts.slice(0, -1);
 
-  return `${parts.slice(0, -1).join(', ')} e ${parts[parts.length - 1]}`;
+  return leading.length > 0 ? `${leading.join(', ')} e ${last}` : last;
 }
 
 /**
@@ -74,10 +101,7 @@ function joinInSentence(parts: ReadonlyArray<string>): string {
  * da tela de início usa `formatLongDuration`.
  */
 export function formatDuration(totalMinutes: number): string {
-  const { days, hours, minutes } = breakdownMinutes(totalMinutes);
-  const parts: string[] = [];
-  if (days > 0) parts.push(`${days} d`);
-  if (hours > 0) parts.push(`${hours} h`);
-  if (minutes > 0 || parts.length === 0) parts.push(`${minutes} min`);
-  return parts.join(' ');
+  return significantUnits(totalMinutes)
+    .map(({ value, short }) => `${value} ${short}`)
+    .join(' ');
 }

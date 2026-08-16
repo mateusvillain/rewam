@@ -36,11 +36,6 @@ export default function HomeScreen() {
         />
       ) : (
         <Total
-          // Por extenso, e não compacto: este é o único número que o app
-          // apresenta, e a tela tem espaço de sobra para dizê-lo sem
-          // abreviação. `formatLongDuration` já devolve "0 minutos" para zero,
-          // que é o certo aqui: quem ainda não registrou nada tem zero
-          // minutos, não um total desconhecido.
           total={formatLongDuration(stats.data.totalMinutes)}
           incomplete={describeIncompleteTotal(stats.data)}
           isEmpty={hasNothingYet(stats.data)}
