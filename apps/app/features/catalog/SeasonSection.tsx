@@ -1,23 +1,22 @@
 import { colors, radii, spacing, typography } from '@rewam/tokens';
 import type { CatalogSeason, EpisodeWatchCount } from '@rewam/types';
-
-import type { SelectionSummary } from './batch-selection';
 import { Button, FormDescription, FormMessage } from '@rewam/ui';
 
 import { useCreateWatchEvent, useCreateWatchEvents, useDeleteWatchEvent } from '@/features/watch';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { describeCatalogError } from './catalog-error';
-import { formatRuntime } from './title-presentation';
+import { describeCatalogError, type CatalogErrorPresentation } from './catalog-error';
 import { useSeasonEpisodes } from './use-series';
+import { BatchBar } from './BatchBar';
 import {
-  describeSelection,
+  isWholeSeasonSelected,
   summarizeSelection,
   toggleSelection,
   toggleWholeSeason,
 } from './batch-selection';
-import { describeEpisodeCount, formatProgress, type Progress } from './series-progress';
+import { EpisodeRow } from './EpisodeRow';
+import { formatProgress, type Progress } from './series-progress';
 
 export type SeasonSectionProps = {
   season: CatalogSeason;
@@ -96,18 +95,24 @@ export function SeasonSection({
 
   // Sem isto o toque simplesmente não acontece: o botão destrava, a contagem
   // não muda e nada explica por quê. É o que `WatchActions` já faz no filme.
-  const failure = create.isError
-    ? describeCatalogError(create.error, 'tv')
-    : remove.isError
-      ? describeCatalogError(remove.error, 'tv')
-      : batch.isError
-        ? describeCatalogError(batch.error, 'tv')
-        : null;
+  // O mais recente vence. Encadeados por ordem fixa, uma falha antiga de
+  // "Marcar" ficaria na frente para sempre — `isError` só some na mutação
+  // seguinte —, e o erro do lote que acabou de acontecer nunca apareceria.
+  const failure = mostRecentFailure([
+    { mutation: create, kind: 'single' },
+    { mutation: remove, kind: 'single' },
+    { mutation: batch, kind: 'batch' },
+  ]);
 
   return (
     <View style={styles.root}>
       <Pressable
-        onPress={onToggle}
+        onPress={() => {
+          // Fechar a temporada abandona a seleção: reabrir e reencontrar
+          // episódios marcados de uma sessão anterior é surpresa, não memória.
+          if (isOpen) leaveSelection();
+          onToggle();
+        }}
         accessibilityRole="button"
         // `expanded` é o que faz o leitor de tela anunciar que isto abre e
         // fecha; sem ele, é um botão que muda a tela sem avisar como.
@@ -157,6 +162,7 @@ export function SeasonSection({
                 isBusy={pendingEpisodes.has(episode.id)}
                 isSelecting={isSelecting}
                 isSelected={selected.has(episode.id)}
+                isLocked={batch.isPending}
                 onToggleSelection={() =>
                   setSelected((current) => toggleSelection(current, episode.id))
                 }
@@ -183,16 +189,25 @@ export function SeasonSection({
             ))
           )}
 
-          {failure ? <FormMessage>{failure.detail}</FormMessage> : null}
+          {failure ? (
+            <FormMessage>
+              {/* O lote é atômico, então "falhou" e "nada entrou" são a mesma
+                  coisa — e dizer isso é o que dispensa a pessoa de conferir
+                  episódio a episódio o que sobrou pela metade. O acréscimo
+                  acompanha a falha exibida, e não `batch.isError`: um erro de
+                  lote antigo não pode legendar uma falha de toque recente. */}
+              {failure.kind === 'batch'
+                ? `${failure.detail} Nenhum episódio foi registrado.`
+                : failure.detail}
+            </FormMessage>
+          ) : null}
 
           {episodes.data && episodes.data.length > 0 && titleId !== null ? (
             <BatchBar
               isSelecting={isSelecting}
               summary={summarizeSelection(episodes.data, selected)}
               isSaving={batch.isPending}
-              allSelected={
-                episodes.data.length > 0 && episodes.data.every((e) => selected.has(e.id))
-              }
+              allSelected={isWholeSeasonSelected(selected, episodes.data)}
               onStart={() => setIsSelecting(true)}
               onToggleAll={() =>
                 setSelected((current) => toggleWholeSeason(current, episodes.data))
@@ -230,6 +245,27 @@ export function SeasonSection({
  * TMDB **e** grava no banco, então tanto `TmdbError` quanto `DatabaseError`
  * passam por aqui — e é ele que sabe dos dois.
  */
+/**
+ * A falha mais recente entre várias mutações.
+ *
+ * `submittedAt` cresce a cada `mutate`, então a maior é a última tentativa.
+ * Sem isto, a ordem do encadeamento decidiria qual erro a pessoa vê — e seria
+ * sempre o mesmo, porque `isError` permanece até a mutação seguinte.
+ */
+function mostRecentFailure(
+  candidates: ReadonlyArray<{
+    mutation: { isError: boolean; error: unknown; submittedAt: number };
+    kind: 'single' | 'batch';
+  }>,
+): (CatalogErrorPresentation & { kind: 'single' | 'batch' }) | null {
+  const failed = candidates.filter((candidate) => candidate.mutation.isError);
+  if (failed.length === 0) return null;
+
+  const latest = failed.reduce((a, b) => (b.mutation.submittedAt > a.mutation.submittedAt ? b : a));
+
+  return { ...describeCatalogError(latest.mutation.error, 'tv'), kind: latest.kind };
+}
+
 function SeasonError({
   error,
   isRetrying,
@@ -252,176 +288,6 @@ function SeasonError({
           onPress={onRetry}
         />
       ) : null}
-    </View>
-  );
-}
-
-/**
- * A barra de seleção em lote.
- *
- * O resumo aparece antes de confirmar porque é o que o briefing pede: a pessoa
- * precisa saber quantos minutos está prestes a somar ao total. Sem ele,
- * "marcar temporada" é um botão que muda um número invisível.
- */
-function BatchBar({
-  isSelecting,
-  summary,
-  isSaving,
-  allSelected,
-  onStart,
-  onToggleAll,
-  onConfirm,
-  onCancel,
-}: {
-  isSelecting: boolean;
-  summary: SelectionSummary;
-  isSaving: boolean;
-  allSelected: boolean;
-  onStart: () => void;
-  onToggleAll: () => void;
-  onConfirm: () => void;
-  onCancel: () => void;
-}) {
-  if (!isSelecting) {
-    return (
-      <View style={styles.batch}>
-        <Button label="Selecionar vários" variant="ghost" onPress={onStart} />
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.batch}>
-      <Button
-        label={allSelected ? 'Desmarcar temporada' : 'Selecionar temporada'}
-        variant="ghost"
-        disabled={isSaving}
-        onPress={onToggleAll}
-      />
-
-      {summary.count > 0 ? (
-        <>
-          {/* Agrupado com o texto do resumo para o leitor de tela anunciar o
-              que será gravado, e não só o rótulo do botão. */}
-          <View accessible accessibilityLabel={`Selecionado: ${describeSelection(summary)}`}>
-            <FormDescription>{describeSelection(summary)}</FormDescription>
-          </View>
-
-          <View style={styles.batchActions}>
-            <Button label="Cancelar" variant="ghost" disabled={isSaving} onPress={onCancel} />
-            <Button
-              label={isSaving ? 'Registrando…' : 'Registrar selecionados'}
-              disabled={isSaving}
-              onPress={onConfirm}
-            />
-          </View>
-        </>
-      ) : (
-        <Button label="Cancelar" variant="ghost" disabled={isSaving} onPress={onCancel} />
-      )}
-    </View>
-  );
-}
-
-function EpisodeRow({
-  number,
-  name,
-  runtimeMinutes,
-  watched,
-  isBusy,
-  isSelecting,
-  isSelected,
-  onToggleSelection,
-  onMark,
-  onUndo,
-}: {
-  number: number;
-  name: string | null;
-  runtimeMinutes: number | null;
-  watched: EpisodeWatchCount | null;
-  isBusy: boolean;
-  isSelecting: boolean;
-  isSelected: boolean;
-  onToggleSelection: () => void;
-  onMark: () => void;
-  onUndo: (eventId: string) => void;
-}) {
-  const duration = formatRuntime(runtimeMinutes);
-  const count = watched?.watchCount ?? 0;
-  const label = name ?? `Episódio ${number}`;
-
-  return (
-    // Agrupado num anúncio só: lidos soltos, número, nome e duração viram três
-    // itens sem relação para quem usa leitor de tela. Os botões ficam fora do
-    // grupo para continuarem alcançáveis como controles.
-    <View style={styles.episode}>
-      <View
-        accessible
-        accessibilityLabel={`Episódio ${number}. ${label}. ${duration}. ${describeEpisodeCount(count)}`}
-        style={styles.episodeInfo}
-      >
-        <Text style={styles.episodeNumber}>{number}</Text>
-
-        <View style={styles.episodeText}>
-          <Text style={styles.episodeName} numberOfLines={2}>
-            {label}
-          </Text>
-          {/* A contagem é texto, e não só cor: cor sozinha não chega a quem não
-              a distingue, e é a informação da linha que muda. Assistido não fica
-              mais apagado que não assistido — apagar é o que a interface faz com
-              o que está desabilitado, e é o oposto do que aconteceu aqui. */}
-          <Text style={styles.episodeMeta}>{duration}</Text>
-          {count > 0 ? (
-            <Text style={styles.watchedCount}>{describeEpisodeCount(count)}</Text>
-          ) : null}
-        </View>
-      </View>
-
-      <View style={styles.episodeActions}>
-        {/* Em modo de seleção os controles de um episódio só somem: com os dois
-            à mão, um toque em "Marcar" gravaria um enquanto a seleção espera
-            para gravar vários, e a contagem mudaria por baixo do resumo. */}
-        {isSelecting ? (
-          <Button
-            label={isSelected ? 'Selecionado' : 'Selecionar'}
-            variant={isSelected ? 'primary' : 'ghost'}
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: isSelected }}
-            accessibilityLabel={`Episódio ${number}`}
-            onPress={onToggleSelection}
-          />
-        ) : (
-          <>
-            {watched ? (
-              <Button
-                label="Desfazer"
-                variant="ghost"
-                // O rótulo visível diz o gesto; o acessível diz sobre o quê, porque
-                // fora da linha "Desfazer" sozinho não tem alvo.
-                accessibilityLabel={`Remover o último registro do episódio ${number}`}
-                disabled={isBusy}
-                onPress={() => onUndo(watched.latestEventId)}
-              />
-            ) : null}
-
-            <Button
-              label={isBusy ? 'Salvando…' : 'Marcar'}
-              variant={count > 0 ? 'ghost' : 'primary'}
-              // O estado entra no rótulo acessível: mudar só o texto visível deixa
-              // o leitor de tela anunciando o mesmo nome antes, durante e depois.
-              accessibilityLabel={
-                isBusy
-                  ? `Salvando o episódio ${number}`
-                  : count > 0
-                    ? `Marcar episódio ${number} como reassistido`
-                    : `Marcar episódio ${number} como assistido`
-              }
-              disabled={isBusy}
-              onPress={onMark}
-            />
-          </>
-        )}
-      </View>
     </View>
   );
 }

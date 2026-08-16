@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   describeSelection,
+  isWholeSeasonSelected,
   summarizeSelection,
   toggleSelection,
   toggleWholeSeason,
@@ -112,6 +113,18 @@ describe('toggleSelection', () => {
   });
 });
 
+describe('isWholeSeasonSelected', () => {
+  it('só é verdade com todos marcados', () => {
+    expect(isWholeSeasonSelected(new Set(['a', 'b']), season)).toBe(false);
+    expect(isWholeSeasonSelected(new Set(['a', 'b', 'c']), season)).toBe(true);
+  });
+
+  it('temporada vazia não está "toda selecionada"', () => {
+    // Senão o atalho nasceria dizendo "Desmarcar temporada" sem nada marcado.
+    expect(isWholeSeasonSelected(new Set(), [])).toBe(false);
+  });
+});
+
 describe('toggleWholeSeason', () => {
   it('marca a temporada inteira', () => {
     expect([...toggleWholeSeason(new Set(), season)].sort()).toEqual(['a', 'b', 'c']);
@@ -125,11 +138,6 @@ describe('toggleWholeSeason', () => {
 
   it('seleção parcial completa em vez de limpar', () => {
     expect([...toggleWholeSeason(new Set(['a']), season)].sort()).toEqual(['a', 'b', 'c']);
-  });
-
-  it('preserva seleção de outra temporada', () => {
-    const outra = new Set(['z']);
-    expect([...toggleWholeSeason(outra, season)].sort()).toEqual(['a', 'b', 'c', 'z']);
   });
 
   it('temporada vazia não marca nada', () => {

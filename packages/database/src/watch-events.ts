@@ -116,6 +116,41 @@ function parseBoundary(value: string, field: 'from' | 'to'): string {
 }
 
 /**
+ * Da entrada validada para a linha que o PostgREST espera.
+ *
+ * Compartilhada entre o registro de um e o de vários: duas cópias divergiriam
+ * na primeira coluna nova, e a que ficasse para trás gravaria evento pela
+ * metade sem erro algum.
+ *
+ * Validar aqui evita a ida ao banco e, principalmente, evita que o nome de uma
+ * constraint (`watch_events_notes_length_check`) chegue à tela como se fosse
+ * mensagem para gente ler.
+ */
+function toWatchEventRow(input: CreateWatchEventInput) {
+  // A validação falha como `ZodError`, que nenhuma camada acima reconhece: a
+  // tela cairia no ramo genérico e diria que o *catálogo* devolveu algo
+  // ilegível, quando o problema é o dado que estamos mandando. Traduzir aqui
+  // mantém o contrato do pacote — o que sai daqui é sempre `DatabaseError`.
+  const parsed = createWatchEventInputSchema.safeParse(input);
+
+  if (!parsed.success) {
+    throw new DatabaseError('dados-invalidos', 'Algum dado desta exibição não é aceito.', {
+      cause: parsed.error,
+    });
+  }
+
+  const event = parsed.data;
+
+  return {
+    title_id: event.titleId,
+    episode_id: event.episodeId,
+    watched_at: event.watchedAt,
+    duration_minutes: event.durationMinutes,
+    notes: event.notes,
+  };
+}
+
+/**
  * Registra uma exibição.
  *
  * A duração vem congelada da entrada, e não é lida do título aqui de propósito:
@@ -127,20 +162,9 @@ export async function createWatchEvent(
   client: RewamSupabaseClient,
   input: CreateWatchEventInput,
 ): Promise<WatchEvent> {
-  // Validar na entrada evita a ida ao banco e, principalmente, evita que o
-  // nome de uma constraint (`watch_events_notes_length_check`) chegue à tela
-  // como se fosse mensagem para gente ler.
-  const event = createWatchEventInputSchema.parse(input);
-
   const { data, error } = await client
     .from('watch_events')
-    .insert({
-      title_id: event.titleId,
-      episode_id: event.episodeId,
-      watched_at: event.watchedAt,
-      duration_minutes: event.durationMinutes,
-      notes: event.notes,
-    })
+    .insert(toWatchEventRow(input))
     .select(WATCH_EVENT_COLUMNS)
     .single();
 

@@ -74,12 +74,16 @@ export function toEpisode(row: Record<string, unknown>): Episode {
 }
 
 /**
- * As linhas que uma função `returns setof` prometeu devolver.
+ * As linhas que uma consulta prometeu devolver — de uma função `returns setof`
+ * ou de um `insert ... returning`.
  *
- * `consulta-invalida`, e não `indisponivel`: mandar N e receber outra coisa é a
- * função errada ou o payload errado — defeito de programação, que falha igual
- * todas as vezes. Classificar como indisponível faria a tela oferecer "tentar
- * de novo" para algo que nunca vai funcionar.
+ * `consulta-invalida`, e não `indisponivel`: receber outra coisa que não uma
+ * lista é a função errada ou o payload errado — defeito de programação, que
+ * falha igual todas as vezes. Classificar como indisponível faria a tela
+ * oferecer "tentar de novo" para algo que nunca vai funcionar.
+ *
+ * Confere a forma, não a quantidade: quem manda N e precisa receber N confere
+ * isso na própria chamada, onde o número esperado é conhecido.
  */
 export function requireRows(data: unknown, what: string): RawRow[] {
   if (!Array.isArray(data)) {

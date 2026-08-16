@@ -71,6 +71,14 @@ export function toggleSelection(
   return next;
 }
 
+/** Se a temporada toda está selecionada. Decide o rótulo do atalho e o que ele faz. */
+export function isWholeSeasonSelected(
+  selected: ReadonlySet<string>,
+  episodes: ReadonlyArray<Episode>,
+): boolean {
+  return episodes.length > 0 && episodes.every((episode) => selected.has(episode.id));
+}
+
 /**
  * O atalho de temporada inteira, que também serve para limpar.
  *
@@ -82,9 +90,7 @@ export function toggleWholeSeason(
   selected: ReadonlySet<string>,
   episodes: ReadonlyArray<Episode>,
 ): ReadonlySet<string> {
-  const allSelected = episodes.length > 0 && episodes.every((episode) => selected.has(episode.id));
-
-  if (allSelected) {
+  if (isWholeSeasonSelected(selected, episodes)) {
     const next = new Set(selected);
     for (const episode of episodes) next.delete(episode.id);
     return next;
