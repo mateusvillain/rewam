@@ -6,7 +6,10 @@
  * descendem dela: é o que faz o progresso da tela mudar sozinho quando um
  * episódio é registrado.
  */
-export { watchEventsKey } from './use-watch-events';
+// As mutações saem porque a lista de episódios (E5.3) registra e desfaz por
+// episódio: é a mesma operação do filme, com outro alvo, e duplicá-la seria
+// duplicar a invalidação de cache junto.
+export { useCreateWatchEvent, useDeleteWatchEvent, watchEventsKey } from './use-watch-events';
 export { WatchActions } from './WatchActions';
 // A tradução de erro do banco não é específica de registrar: a tela de início
 // mostra a mesma mensagem quando o total falha. Exportada para não virar uma

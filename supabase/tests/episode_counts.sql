@@ -26,16 +26,16 @@ values ('cccccccc-0000-4000-8000-000000000001', 'aaaaaaaa-0000-4000-8000-0000000
        ('cccccccc-0000-4000-8000-000000000003', 'aaaaaaaa-0000-4000-8000-000000000001', 2, 1, 'S2E1', 50);
 
 -- A: assiste S1E1 duas vezes e S2E1 uma. S1E2 fica intocado.
-insert into public.watch_events (user_id, title_id, episode_id, duration_minutes)
-values ('11111111-1111-1111-1111-111111111111', 'aaaaaaaa-0000-4000-8000-000000000001', 'cccccccc-0000-4000-8000-000000000001', 50),
-       ('11111111-1111-1111-1111-111111111111', 'aaaaaaaa-0000-4000-8000-000000000001', 'cccccccc-0000-4000-8000-000000000001', 50),
-       ('11111111-1111-1111-1111-111111111111', 'aaaaaaaa-0000-4000-8000-000000000001', 'cccccccc-0000-4000-8000-000000000003', 50),
+insert into public.watch_events (user_id, title_id, episode_id, duration_minutes, watched_at)
+values ('11111111-1111-1111-1111-111111111111', 'aaaaaaaa-0000-4000-8000-000000000001', 'cccccccc-0000-4000-8000-000000000001', 50, '2026-08-01T20:00:00Z'),
+       ('11111111-1111-1111-1111-111111111111', 'aaaaaaaa-0000-4000-8000-000000000001', 'cccccccc-0000-4000-8000-000000000001', 50, '2026-08-10T20:00:00Z'),
+       ('11111111-1111-1111-1111-111111111111', 'aaaaaaaa-0000-4000-8000-000000000001', 'cccccccc-0000-4000-8000-000000000003', 50, '2026-08-05T20:00:00Z'),
        -- Registro agregado da série, sem episódio.
-       ('11111111-1111-1111-1111-111111111111', 'aaaaaaaa-0000-4000-8000-000000000001', null, 50);
+       ('11111111-1111-1111-1111-111111111111', 'aaaaaaaa-0000-4000-8000-000000000001', null, 50, '2026-08-06T20:00:00Z');
 
 -- B assiste S1E2, que A não assistiu.
-insert into public.watch_events (user_id, title_id, episode_id, duration_minutes)
-values ('22222222-2222-2222-2222-222222222222', 'aaaaaaaa-0000-4000-8000-000000000001', 'cccccccc-0000-4000-8000-000000000002', 50);
+insert into public.watch_events (user_id, title_id, episode_id, duration_minutes, watched_at)
+values ('22222222-2222-2222-2222-222222222222', 'aaaaaaaa-0000-4000-8000-000000000001', 'cccccccc-0000-4000-8000-000000000002', 50, '2026-08-02T20:00:00Z');
 
 select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
 
@@ -56,6 +56,26 @@ select pg_temp.expect_count('e a contagem do reassistido é dois',
 select pg_temp.expect_count('episódio nunca assistido não aparece',
   $$select count(*) from public.episode_watch_counts('aaaaaaaa-0000-4000-8000-000000000001')
     where episode_id = 'cccccccc-0000-4000-8000-000000000002'$$, 0);
+
+-- ---------------------------------------------------------------------------
+-- A exibição mais recente vem junto
+-- ---------------------------------------------------------------------------
+
+-- É ela que a ação de desfazer apaga. Buscá-la numa consulta à parte abriria a
+-- chance de a contagem e o "último" virem de estados diferentes do banco.
+select pg_temp.expect_count('o último evento do episódio reassistido é o mais recente',
+  $$select count(*) from public.episode_watch_counts('aaaaaaaa-0000-4000-8000-000000000001') c
+    join public.watch_events w on w.id = c.latest_event_id
+    where c.episode_id = 'cccccccc-0000-4000-8000-000000000001'
+      and w.watched_at = (
+        select max(watched_at) from public.watch_events
+        where episode_id = 'cccccccc-0000-4000-8000-000000000001'
+          and user_id = '11111111-1111-1111-1111-111111111111')$$, 1);
+
+-- `max(id)` daria o maior uuid, que não tem relação com o mais recente.
+select pg_temp.expect_count('e nunca é nulo quando há exibição',
+  $$select count(*) from public.episode_watch_counts('aaaaaaaa-0000-4000-8000-000000000001')
+    where latest_event_id is null$$, 0);
 
 -- ---------------------------------------------------------------------------
 -- O registro agregado da série não é um episódio

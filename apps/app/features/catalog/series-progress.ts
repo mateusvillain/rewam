@@ -75,6 +75,17 @@ export function countRegularSeasons(seasons: ReadonlyArray<CatalogSeason>): numb
   return seasons.filter((season) => season.seasonNumber > 0).length;
 }
 
+/**
+ * A contagem de um episódio por extenso.
+ *
+ * "não assistido" em vez de "assistido 0 vezes": zero não é um placar, e a
+ * linha precisa dizer o estado, não um número que ninguém acumulou.
+ */
+export function describeEpisodeCount(count: number): string {
+  if (count <= 0) return 'não assistido';
+  return count === 1 ? 'assistido 1 vez' : `assistido ${count} vezes`;
+}
+
 /** Contagem de temporadas por extenso, com o singular concordando. */
 export function formatSeasonCount(total: number): string {
   if (total <= 0) return 'Sem temporadas listadas';
@@ -100,7 +111,15 @@ export function formatProgress(progress: Progress): string {
   return `${Math.min(progress.watched, progress.total)} de ${progress.total}`;
 }
 
-/** Índice das contagens por `episodes.id`, para a lista decidir item a item. */
-export function indexByEpisode(counts: ReadonlyArray<EpisodeWatchCount>): Map<string, number> {
-  return new Map(counts.map((count) => [count.episodeId, count.watchCount]));
+/**
+ * Índice das contagens por `episodes.id`, para a lista decidir item a item.
+ *
+ * Guarda a contagem inteira, e não só o número: a linha precisa também do id da
+ * exibição mais recente para poder desfazê-la, e buscá-lo depois seria uma
+ * consulta por toque num dado que já chegou.
+ */
+export function indexByEpisode(
+  counts: ReadonlyArray<EpisodeWatchCount>,
+): Map<string, EpisodeWatchCount> {
+  return new Map(counts.map((count) => [count.episodeId, count]));
 }

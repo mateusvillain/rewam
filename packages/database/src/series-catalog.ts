@@ -114,7 +114,8 @@ export async function upsertEpisodes(
  *
  * Uma linha por episódio com ao menos uma exibição, com `seasonNumber` junto —
  * é ele que permite mostrar o progresso de uma temporada ainda fechada, sem
- * carregar os episódios dela.
+ * carregar os episódios dela — e com o id da exibição mais recente, que é a
+ * que a ação de desfazer apaga.
  *
  * Episódio ausente da lista significa nunca assistido. Devolver zero para cada
  * episódio existente exigiria conhecer todos eles, que é justamente o que o
@@ -133,6 +134,7 @@ export async function getEpisodeWatchCounts(
       episodeId: row.episode_id,
       seasonNumber: Number(row.season_number),
       watchCount: Number(row.watch_count),
+      latestEventId: row.latest_event_id,
     }),
   );
 }

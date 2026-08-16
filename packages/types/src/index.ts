@@ -175,6 +175,8 @@ export const episodeWatchCountSchema = z.object({
   episodeId: z.uuid(),
   seasonNumber: z.number().int().nonnegative(),
   watchCount: z.number().int().positive(),
+  /** A exibição mais recente, que é a que a ação de desfazer apaga. */
+  latestEventId: z.uuid(),
 });
 export type EpisodeWatchCount = z.infer<typeof episodeWatchCountSchema>;
 
