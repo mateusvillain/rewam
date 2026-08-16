@@ -190,13 +190,77 @@ export async function listWatchEvents(
   };
 }
 
+export type TitleWatchSummary = {
+  /** Quantas vezes o título foi assistido. */
+  count: number;
+  /** A exibição mais recente, ou `null` se não houver nenhuma. */
+  latest: WatchEvent | null;
+};
+
 /**
- * Exibições de um título, em ordem cronológica crescente.
+ * Contagem de exibições de um título, com a mais recente junto.
  *
- * Crescente porque é a ordem em que `computeWatchPositions` numera exibição e
- * reassistida; inverter para exibir é trabalho da tela. Sem paginação: o
- * histórico de um título é curto por natureza, e a numeração precisa de todos
- * os eventos para estar certa — uma página só diria a posição dentro da página.
+ * A tela mostra um número — "Você assistiu 3 vezes" — e oferece remover o
+ * último registro. Baixar todas as exibições para depois medir o tamanho da
+ * lista resolveria as duas coisas, mas ao custo de tráfego que cresce a cada
+ * reassistida para produzir um inteiro.
+ *
+ * As duas informações vêm numa requisição só: o PostgREST devolve a contagem
+ * total no cabeçalho `Content-Range` mesmo com `limit(1)`, então `count` é o
+ * total de verdade e não o tamanho da página. Duas consultas separadas seriam
+ * dois RTTs e abririam a chance de a contagem e o "último" virem de estados
+ * diferentes do banco.
+ *
+ * A ordenação repete a de `listWatchEventsByTitle`, invertida: sem o desempate
+ * por `id`, dois registros no mesmo instante fariam "o último" variar entre uma
+ * chamada e outra — e o botão de remover apagaria um evento diferente do que a
+ * contagem sugere.
+ */
+export async function getTitleWatchSummary(
+  client: RewamSupabaseClient,
+  titleId: string,
+): Promise<TitleWatchSummary> {
+  const { data, error, count } = await client
+    .from('watch_events')
+    .select(WATCH_EVENT_COLUMNS, { count: 'exact' })
+    .eq('title_id', titleId)
+    .order('watched_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(1);
+
+  throwIfError(error);
+
+  const rows = (data ?? []) as RawRow[];
+  const first = rows[0];
+
+  if (count === null) {
+    // `count` é anulável porque nem toda consulta o pede; esta pede. Nulo aqui
+    // significa que o `Content-Range` não veio, e é justamente quando o número
+    // é desconhecido.
+    //
+    // Cair para `rows.length` seria pior do que falhar: com `limit(1)` isso dá
+    // 0 ou 1, então um título assistido 42 vezes anunciaria "1 vez" — indistin-
+    // guível da verdade para quem lê. Um número errado que parece certo é o
+    // defeito que ninguém reporta.
+    throw new DatabaseError('indisponivel', 'O banco não informou quantas exibições existem.');
+  }
+
+  return {
+    count,
+    latest: first ? toWatchEvent(first) : null,
+  };
+}
+
+/**
+ * Exibições de um título, da mais antiga para a mais recente.
+ *
+ * Crescente porque é a ordem em que as exibições aconteceram, que é como se lê
+ * um histórico de consumo. Sem paginação: o histórico de um título é curto por
+ * natureza.
+ *
+ * Sem consumidor na interface desde que o produto dispensou o histórico (E4.4);
+ * segue aqui porque é contrato compartilhado com o MCP (E7), que lista exibições
+ * por conversa. Quem quer só o número usa `getTitleWatchSummary` acima.
  */
 export async function listWatchEventsByTitle(
   client: RewamSupabaseClient,

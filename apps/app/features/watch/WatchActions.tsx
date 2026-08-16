@@ -2,12 +2,8 @@ import { spacing } from '@rewam/tokens';
 import { Button, FormDescription, FormMessage } from '@rewam/ui';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
-import { mostRecentEvent, watchActionLabel, watchCountLabel } from './watch-actions';
-import {
-  useCreateWatchEvent,
-  useDeleteWatchEvent,
-  useWatchEventsByTitle,
-} from './use-watch-events';
+import { watchActionLabel, watchCountLabel } from './watch-actions';
+import { useCreateWatchEvent, useDeleteWatchEvent, useTitleWatchSummary } from './use-watch-events';
 import { describeWatchError } from './watch-error';
 
 export type WatchActionsProps = {
@@ -23,20 +19,23 @@ export type WatchActionsProps = {
 };
 
 /**
- * Registrar e desfazer, na tela de detalhe.
+ * Registrar, desfazer e a contagem, na tela de detalhe.
  *
  * É um toque só: a data é o instante do toque e a duração vem do catálogo.
- * Nada é sobrescrito — registrar de novo cria outra exibição, e é daí que sai a
- * contagem de reassistidas.
+ * Nada é sobrescrito — registrar de novo cria outra exibição, e é daí que sai
+ * a contagem.
+ *
+ * A contagem vem do banco como contagem. Baixar as exibições para medir o
+ * tamanho da lista daria o mesmo número ao custo de tráfego que cresce a cada
+ * reassistida — e o produto dispensou o histórico que justificaria baixá-las.
  */
 export function WatchActions({ titleId, runtimeMinutes }: WatchActionsProps) {
-  const events = useWatchEventsByTitle(titleId);
+  const summary = useTitleWatchSummary(titleId);
   const create = useCreateWatchEvent();
   const remove = useDeleteWatchEvent();
 
-  const list = events.data ?? [];
-  const count = list.length;
-  const latest = mostRecentEvent(list);
+  const count = summary.data?.count ?? 0;
+  const latest = summary.data?.latest ?? null;
 
   // Uma mutação por vez: com as duas soltas, tocar em registrar e remover em
   // sequência disputaria a mesma contagem e o resultado dependeria da ordem de
@@ -49,19 +48,19 @@ export function WatchActions({ titleId, runtimeMinutes }: WatchActionsProps) {
       ? describeWatchError(remove.error)
       : null;
 
-  if (events.isPending) {
+  if (summary.isPending) {
     return <ActivityIndicator accessibilityLabel="Carregando seus registros" />;
   }
 
-  if (events.isError) {
+  if (summary.isError) {
     return (
       <View style={styles.root}>
-        <FormMessage>{describeWatchError(events.error).message}</FormMessage>
+        <FormMessage>{describeWatchError(summary.error).message}</FormMessage>
         <Button
-          label={events.isFetching ? 'Tentando…' : 'Tentar de novo'}
+          label={summary.isFetching ? 'Tentando…' : 'Tentar de novo'}
           variant="ghost"
-          disabled={events.isFetching}
-          onPress={() => void events.refetch()}
+          disabled={summary.isFetching}
+          onPress={() => void summary.refetch()}
         />
       </View>
     );

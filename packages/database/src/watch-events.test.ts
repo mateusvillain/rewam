@@ -7,6 +7,7 @@ import {
   MAX_LIMIT,
   createWatchEvent,
   deleteWatchEvent,
+  getTitleWatchSummary,
   listWatchEvents,
   listWatchEventsByTitle,
   updateWatchEvent,
@@ -67,7 +68,7 @@ const entrada: CreateWatchEventInput = {
  * expostos para as asserções olharem o que foi de fato pedido ao banco — que é
  * o objeto destes testes.
  */
-function fakeClient(resultado: { data?: unknown; error?: unknown }) {
+function fakeClient(resultado: { data?: unknown; error?: unknown; count?: number }) {
   const calls = {
     from: vi.fn(),
     select: vi.fn(),
@@ -79,9 +80,16 @@ function fakeClient(resultado: { data?: unknown; error?: unknown }) {
     range: vi.fn(),
     gte: vi.fn(),
     lte: vi.fn(),
+    limit: vi.fn(),
   };
 
-  const resolved = { data: resultado.data ?? null, error: resultado.error ?? null };
+  // `count` acompanha a resposta como no cliente real, onde ele vem do
+  // cabeçalho `Content-Range` e não do corpo.
+  const resolved = {
+    data: resultado.data ?? null,
+    error: resultado.error ?? null,
+    count: resultado.count ?? null,
+  };
 
   const builder: Record<string, unknown> = {
     then: (resolve: (value: typeof resolved) => unknown) => Promise.resolve(resolve(resolved)),
@@ -390,5 +398,75 @@ describe('deleteWatchEvent', () => {
 
     const erro = await deleteWatchEvent(client, EVENT_ID).catch((e: unknown) => e);
     expect((erro as DatabaseError).code).toBe('nao-encontrado');
+  });
+});
+
+describe('getTitleWatchSummary', () => {
+  it('pede contagem exata e uma linha só', async () => {
+    const { client, calls } = fakeClient({ data: [eventoRow], count: 3 });
+    await getTitleWatchSummary(client, TITLE_ID);
+
+    // A contagem vem do cabeçalho, então `limit(1)` não a reduz: é assim que
+    // uma requisição só entrega o número e o último registro.
+    expect(calls.select.mock.calls[0]![1]).toEqual({ count: 'exact' });
+    expect(calls.limit.mock.calls[0]).toEqual([1]);
+  });
+
+  it('não baixa a lista para contar', async () => {
+    const { client, calls } = fakeClient({ data: [eventoRow], count: 42 });
+    const resumo = await getTitleWatchSummary(client, TITLE_ID);
+
+    // O ponto da issue: 42 exibições e uma linha trafegada.
+    expect(resumo.count).toBe(42);
+    expect(calls.range).not.toHaveBeenCalled();
+  });
+
+  it('traz a exibição mais recente, com desempate por id', async () => {
+    const { client, calls } = fakeClient({ data: [eventoRow], count: 3 });
+    const resumo = await getTitleWatchSummary(client, TITLE_ID);
+
+    expect(resumo.latest?.id).toBe(EVENT_ID);
+    // Sem o desempate, "o último" variaria entre chamadas quando dois
+    // registros caíssem no mesmo instante — e o botão de remover apagaria um
+    // evento diferente do que a contagem sugere.
+    expect(calls.order.mock.calls).toEqual([
+      ['watched_at', { ascending: false }],
+      ['id', { ascending: false }],
+    ]);
+  });
+
+  it('título nunca assistido devolve zero e nada a remover', async () => {
+    const { client } = fakeClient({ data: [], count: 0 });
+
+    await expect(getTitleWatchSummary(client, TITLE_ID)).resolves.toEqual({
+      count: 0,
+      latest: null,
+    });
+  });
+
+  it('filtra pelo título, e não por usuário: quem faz isso é o RLS', async () => {
+    const { client, calls } = fakeClient({ data: [eventoRow], count: 1 });
+    await getTitleWatchSummary(client, TITLE_ID);
+
+    expect(calls.eq.mock.calls[0]).toEqual(['title_id', TITLE_ID]);
+    expect(calls.eq.mock.calls.map(([coluna]) => coluna)).not.toContain('user_id');
+  });
+
+  it('falha alto quando a contagem não vem, em vez de inventar um número', async () => {
+    // Cair para o tamanho da página seria pior do que falhar: com `limit(1)`
+    // isso dá 0 ou 1, então um título assistido 42 vezes anunciaria "1 vez" —
+    // indistinguível da verdade para quem lê.
+    const { client } = fakeClient({ data: [eventoRow] });
+
+    const erro = await getTitleWatchSummary(client, TITLE_ID).catch((e: unknown) => e);
+    expect(erro).toBeInstanceOf(DatabaseError);
+    expect((erro as DatabaseError).code).toBe('indisponivel');
+  });
+
+  it('traduz o erro do PostgREST em erro tipado', async () => {
+    const { client } = fakeClient({ error: { code: 'PGRST301', message: 'jwt expired' } });
+
+    const erro = await getTitleWatchSummary(client, TITLE_ID).catch((e: unknown) => e);
+    expect((erro as DatabaseError).code).toBe('nao-autenticado');
   });
 });
